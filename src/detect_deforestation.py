@@ -9,7 +9,7 @@ import os
 
 # --- Configuration ---
 MODEL_PATH = 'deforestation_3band_model.h5'
-LIVE_IMAGE_FOLDER = 'deforestation_alerts'
+LIVE_IMAGE_FOLDER = '../deforestation_alerts'
 LIVE_IMAGE_PATH = os.path.join(LIVE_IMAGE_FOLDER, 'latest_satellite_image.tif')
 TILE_SIZE = 256
 

@@ -10,7 +10,7 @@ import os
 
 # --- Configuration ---
 # Define your file paths
-DATA_FOLDER = 'deforestation_data'
+DATA_FOLDER = '../deforestation_data'
 input_path = os.path.join(DATA_FOLDER, 'deforestation_input_image.tif')
 labels_path = os.path.join(DATA_FOLDER, 'deforestation_labels.tif')
 

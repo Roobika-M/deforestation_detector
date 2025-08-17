@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 # Replace with your specific Google Cloud Project ID
 GOOGLE_CLOUD_PROJECT_ID = 'amazing-math-417115'
 
-# Using a known good AOI with visible deforestation (Bolivia)
+# Using a new AOI for live detection (e.g., in Bolivia)
 AOI_COORDINATES = [
     [-63.02, -14.99],
     [-62.97, -14.99],
@@ -17,10 +17,11 @@ AOI_COORDINATES = [
     [-63.02, -14.99]
 ]
 
-# Define the folder where the images will be saved
-DATA_FOLDER = 'deforestation_alerts'
+# Define the folder and filename for the live image
+DATA_FOLDER = '../deforestation_alerts'
 INPUT_IMAGE_PATH = os.path.join(DATA_FOLDER, 'latest_satellite_image.tif')
-LABELS_PATH = os.path.join(DATA_FOLDER, 'deforestation_labels.tif')
+# Labels are not needed for live detection, so this path is not used
+LABELS_PATH = None 
 
 # New function to download with retries
 def download_file(url, local_path, retries=5):
@@ -59,8 +60,8 @@ def authenticate_and_initialize_gee():
         sys.exit(1)
 
 def fetch_and_save_data():
-    """Fetches the latest Sentinel-2 image and the corresponding deforestation labels."""
-    print("Starting to fetch input image and labels...")
+    """Fetches the latest Sentinel-2 image for live detection."""
+    print("Starting to fetch input image for live detection...")
 
     aoi = ee.Geometry.Polygon(AOI_COORDINATES)
 
@@ -82,21 +83,10 @@ def fetch_and_save_data():
         return False
 
     sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
-
-    # --- Fetch the Deforestation Labels (Ground Truth) ---
-    # ⚠️ Using the correct and most up-to-date public asset name ⚠️
-    labels_image = ee.Image('UMD/hansen/global_forest_change_2023_v1_11').select('loss')
     
-    # Get download URLs
+    # Get download URL for the sentinel image only
     try:
         sentinel_url = sentinel_image.getDownloadUrl({
-            'scale': 10,
-            'crs': 'EPSG:4326',
-            'region': aoi.getInfo()['coordinates'],
-            'format': 'GEO_TIFF'
-        })
-
-        labels_url = labels_image.getDownloadUrl({
             'scale': 10,
             'crs': 'EPSG:4326',
             'region': aoi.getInfo()['coordinates'],
@@ -106,13 +96,11 @@ def fetch_and_save_data():
         print(f"Error getting download URL: {e}")
         return False
 
-    # --- Download the Files using the new function ---
+    # --- Download the file ---
     os.makedirs(DATA_FOLDER, exist_ok=True)
-
     input_success = download_file(sentinel_url, INPUT_IMAGE_PATH)
-    labels_success = download_file(labels_url, LABELS_PATH)
 
-    return input_success and labels_success
+    return input_success
 
 if __name__ == '__main__':
     authenticate_and_initialize_gee()

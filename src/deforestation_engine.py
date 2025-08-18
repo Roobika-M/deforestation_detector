@@ -1,95 +1,108 @@
 # src/deforestation_engine.py
 
-import rasterio
-import numpy as np
-import tensorflow as tf
-from PIL import Image
 import os
-import io
+import tensorflow as tf
+import numpy as np
+import rasterio
+from PIL import Image
 
-# --- Configuration ---
-TILE_SIZE = 256
+# Use a memory-efficient model when available
+from tensorflow.keras.models import load_model
 
-def run_detection_on_image(image_path, model_path='deforestation_3band_model.h5'):
+def run_detection_on_image(image_path, model_path):
     """
-    Runs deforestation detection on a given image file.
+    Loads a new satellite image, processes it, and runs a pre-trained model
+    to detect deforestation.
 
     Args:
-        image_path (str): The file path to the satellite image.
-        model_path (str): The file path to the trained model.
+        image_path (str): The absolute path to the input TIFF image.
+        model_path (str): The absolute path to the trained Keras model file.
 
     Returns:
-        tuple: A tuple containing the blended image, the mask image,
-               and the percentage of deforestation.
+        tuple: A tuple containing the blended image (PIL.Image), the mask image
+               (PIL.Image), and the percentage of deforestation. Returns (None, None, 0)
+               if an error occurs.
     """
-    # Load the trained model
-    try:
-        model = tf.keras.models.load_model(model_path)
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        return None, None, None
+    if not os.path.exists(image_path):
+        print(f"Error: Input image not found at {image_path}")
+        return None, None, 0
 
-    # Load the latest satellite image
+    if not os.path.exists(model_path):
+        print(f"Error: Model not found at {model_path}")
+        return None, None, 0
+
     try:
+        # Load the trained model
+        # The 'custom_objects' argument is important if the model uses custom layers
+        print("Loading deforestation detection model...")
+        model = load_model(model_path, compile=False)
+        print("Model loaded successfully.")
+        
+        # Get the required input shape from the model's first layer
+        # The expected shape is (None, height, width, channels)
+        input_shape = model.input_shape
+        target_height = input_shape[1]
+        target_width = input_shape[2]
+
+        # Read the satellite image
+        print(f"Reading satellite image from {image_path}...")
         with rasterio.open(image_path) as src:
-            live_image = src.read()
-    except FileNotFoundError:
-        print(f"Error: The image file '{image_path}' was not found.")
-        return None, None, None
+            # We are expecting a 3-band RGB image from Sentinel-2
+            image_array = src.read()
+            original_shape = image_array.shape[1:]  # (height, width)
+            image_array = np.moveaxis(image_array, 0, -1)
+            print("Image read successfully.")
 
-    # --- Preprocess the Image and Create Tiles ---
-    def preprocess_and_tile_image(image_data):
-        image_data = image_data.astype('float32') / 3000.0
-        image_data = np.transpose(image_data, (1, 2, 0))
-
-        height, width, _ = image_data.shape
-        padded_height = (height // TILE_SIZE + 1) * TILE_SIZE
-        padded_width = (width // TILE_SIZE + 1) * TILE_SIZE
+        # Preprocess the image for the model
+        print("Preprocessing image...")
         
-        padded_image = np.pad(image_data, ((0, padded_height - height), (0, padded_width - width), (0, 0)), mode='constant')
-
-        tiled_images = []
-        for y in range(0, padded_height, TILE_SIZE):
-            for x in range(0, padded_width, TILE_SIZE):
-                tile = padded_image[y:y + TILE_SIZE, x:x + TILE_SIZE, :]
-                tiled_images.append(tile)
+        # Resize the image to the model's expected input size
+        pil_image = Image.fromarray(image_array.astype(np.uint8))
+        pil_image_resized = pil_image.resize((target_width, target_height), Image.LANCZOS)
+        image_array_resized = np.array(pil_image_resized)
         
-        return np.array(tiled_images), height, width
+        # Normalize the pixel values to the range [0, 1]
+        image_normalized = image_array_resized / 255.0
+        # The model expects a batch dimension
+        image_input = np.expand_dims(image_normalized, axis=0)
 
-    processed_image_tiles, original_height, original_width = preprocess_and_tile_image(live_image)
+        # Make a prediction
+        print("Running deforestation prediction...")
+        prediction = model.predict(image_input)
+        print("Prediction complete.")
 
-    # --- Make Prediction with the Model on each tile ---
-    print("Making predictions on image tiles...")
-    predictions = model.predict(processed_image_tiles)
-
-    # --- Stitch predictions back together ---
-    num_tiles_x = (original_width // TILE_SIZE + 1)
-    num_tiles_y = (original_height // TILE_SIZE + 1)
-
-    stitched_mask = np.zeros((num_tiles_y * TILE_SIZE, num_tiles_x * TILE_SIZE, 1), dtype=np.float32)
-
-    tile_index = 0
-    for y in range(num_tiles_y):
-        for x in range(num_tiles_x):
-            stitched_mask[y * TILE_SIZE : (y + 1) * TILE_SIZE, x * TILE_SIZE : (x + 1) * TILE_SIZE, :] = predictions[tile_index]
-            tile_index += 1
-
-    # Crop the stitched mask to the original image size
-    final_mask = stitched_mask[:original_height, :original_width, :]
-    final_prediction_mask = (final_mask > 0.5).astype(np.uint8)
-
-    # --- Check for Deforestation ---
-    deforestation_percentage = (np.sum(final_prediction_mask) / final_prediction_mask.size) * 100
-
-    # --- Visualize the Results ---
-    with rasterio.open(image_path) as src:
-        original_image_rgb = (np.transpose(src.read(), (1, 2, 0)) / src.read().max() * 255).astype(np.uint8)
+        # Post-process the prediction
+        # The output is a probability map
+        prediction_mask = (prediction[0] > 0.5).astype(np.uint8)
         
-    deforestation_overlay = original_image_rgb.copy()
-    deforestation_overlay[final_prediction_mask[:, :, 0] == 1] = [255, 0, 0]
+        # Resize the mask back to the original image size for overlay
+        mask_pil = Image.fromarray(prediction_mask[:, :, 0] * 255, 'L')
+        mask_resized_to_original = mask_pil.resize(original_shape, Image.LANCZOS)
+        mask_resized_array = np.array(mask_resized_to_original)
 
-    blended_image = Image.fromarray(original_image_rgb).convert("RGBA")
-    red_mask = Image.fromarray(deforestation_overlay).convert("RGBA")
-    blended_image = Image.blend(blended_image, red_mask, alpha=0.5)
+        # Calculate deforestation percentage from the resized mask
+        deforestation_pixels = np.sum(mask_resized_array > 0)
+        total_pixels = mask_resized_array.size
+        deforestation_percentage = (deforestation_pixels / total_pixels) * 100
 
-    return blended_image, Image.fromarray(final_prediction_mask[:, :, 0] * 255), deforestation_percentage
+        # Create visual output
+        # Convert original image to PIL for easy blending
+        original_image_pil = Image.fromarray(image_array.astype(np.uint8))
+        
+        # Create a red mask for the detected areas
+        red_mask_array = np.zeros((*original_shape, 4), dtype=np.uint8)
+        red_mask_array[..., 0] = mask_resized_array  # Red channel
+        red_mask_array[..., 3] = mask_resized_array * 0.7  # Alpha for transparency
+        red_mask_pil = Image.fromarray(red_mask_array, 'RGBA')
+
+        # Create a blended image by overlaying the mask
+        blended_image = Image.alpha_composite(original_image_pil.convert('RGBA'), red_mask_pil)
+        
+        # Create a simple black and white mask image from the resized mask
+        bw_mask = Image.fromarray(mask_resized_array, 'L').convert('RGB')
+
+        return blended_image, bw_mask, deforestation_percentage
+
+    except Exception as e:
+        print(f"An unexpected error occurred during detection: {e}")
+        return None, None, 0

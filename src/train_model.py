@@ -1,23 +1,18 @@
-# src/train_model.py
+# train_model.py
 
 import rasterio
 import numpy as np
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, UpSampling2D, concatenate, Input
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, UpSampling2D, concatenate
 from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam
 import os
-import cv2
 
 # --- Configuration ---
 # Define your file paths
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-DATA_FOLDER = os.path.join(PROJECT_ROOT, 'deforestation_data')
+DATA_FOLDER = '../deforestation_data'
 input_path = os.path.join(DATA_FOLDER, 'deforestation_input_image.tif')
 labels_path = os.path.join(DATA_FOLDER, 'deforestation_labels.tif')
-MODEL_PATH = os.path.join(PROJECT_ROOT, 'model', 'deforestation_3band_model.h5')
-IMAGE_SIZE = (256, 256)
 
 # --- 1. Load Data, Pad, and Create Tiles ---
 print("Loading data...")
@@ -36,27 +31,46 @@ except FileNotFoundError:
     print(f"- {labels_path}")
     exit()
 
-# Transpose image to H, W, C format for TensorFlow
-full_input_image = np.transpose(full_input_image, (1, 2, 0))
-
 # Normalize the input image data
-full_input_image = full_input_image.astype('float32') / 4000.0
-# Ensure labels are binary (0 or 1)
-full_labels = (full_labels > 0).astype(np.float32)
+full_input_image = full_input_image.astype('float32') / 3000.0
 
-# The UNet model expects squared images, so let's resize them
-resized_input = cv2.resize(full_input_image, IMAGE_SIZE)
-resized_labels = cv2.resize(full_labels, IMAGE_SIZE)
-resized_labels = np.expand_dims(resized_labels, axis=-1)
+# Pad the images to be a multiple of 256
+tile_size = 256
+padded_height = (full_input_image.shape[1] // tile_size + 1) * tile_size
+padded_width = (full_input_image.shape[2] // tile_size + 1) * tile_size
 
-# Add a batch dimension
-X = np.expand_dims(resized_input, axis=0)
-y = np.expand_dims(resized_labels, axis=0)
+input_padded = np.pad(full_input_image, ((0, 0), (0, padded_height - full_input_image.shape[1]), (0, padded_width - full_input_image.shape[2])), mode='constant')
+labels_padded = np.pad(full_labels, ((0, padded_height - full_labels.shape[0]), (0, padded_width - full_labels.shape[1])), mode='constant')
 
-# --- 2. Define the UNet Model Architecture ---
-def unet_model(input_size=(256, 256, 3)):
-    inputs = Input(input_size)
-    
+# Transpose the input image to (height, width, channels) for slicing
+input_padded = np.transpose(input_padded, (1, 2, 0))
+
+# Create tiles
+input_tiles = []
+label_tiles = []
+for y in range(0, padded_height, tile_size):
+    for x in range(0, padded_width, tile_size):
+        input_tile = input_padded[y:y + tile_size, x:x + tile_size, :]
+        label_tile = labels_padded[y:y + tile_size, x:x + tile_size]
+        input_tiles.append(input_tile)
+        label_tiles.append(np.expand_dims(label_tile, axis=-1))
+
+# Convert lists to NumPy arrays
+X = np.array(input_tiles)
+y = np.array(label_tiles)
+
+# Split the data into training and validation sets
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+print("\nNumber of training tiles:", len(X_train))
+print("Number of validation tiles:", len(X_val))
+print("Shape of a single tile:", X_train[0].shape)
+print("Shape of a single label tile:", y_train[0].shape)
+
+# --- 2. Build and Train the UNet Model ---
+def unet_model(input_shape=(256, 256, 3)):
+    inputs = tf.keras.Input(input_shape)
+
     # Encoder
     conv1 = Conv2D(32, 3, activation='relu', padding='same')(inputs)
     conv1 = Conv2D(32, 3, activation='relu', padding='same')(conv1)
@@ -82,27 +96,22 @@ def unet_model(input_size=(256, 256, 3)):
     merge5 = concatenate([conv1, up5], axis=3)
     conv5 = Conv2D(32, 3, activation='relu', padding='same')(merge5)
     conv5 = Conv2D(32, 3, activation='relu', padding='same')(conv5)
-    
+
     # Output layer
     output = Conv2D(1, 1, activation='sigmoid')(conv5)
 
-    model = Model(inputs=inputs, outputs=output)
-    return model
+    return Model(inputs=inputs, outputs=output)
 
-# --- 3. Train the Model ---
-print("\n--- Step 3: Training the model ---")
-model = unet_model(input_size=(256, 256, 3))
-model.compile(optimizer=Adam(learning_rate=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
-model.summary()
+model = unet_model(input_shape=(256, 256, 3))
 
-# Train the model with the preprocessed data
-# Note: You need a larger dataset for effective training
-model.fit(x=X, y=y, epochs=10, batch_size=1)
+# Compile the model
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
-# --- 4. Save the Model ---
-print("\n--- Step 4: Saving the model ---")
-if not os.path.exists(os.path.dirname(MODEL_PATH)):
-    os.makedirs(os.path.dirname(MODEL_PATH))
+# Train the model
+print("\nStarting model training...")
+history = model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=10)
 
-model.save(MODEL_PATH)
-print(f"Model saved successfully to {MODEL_PATH}")
+# Save the trained model
+print("\nTraining complete. Saving the model...")
+model.save('deforestation_3band_model.h5')
+print("Model saved as 'deforestation_3band_model.h5'")

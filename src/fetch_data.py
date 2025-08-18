@@ -1,27 +1,29 @@
+# src/fetch_data.py
+
 import ee
 import requests
 import os
 import sys
 from datetime import datetime, timedelta
+import ee.mapclient
 
-# --- Configuration ---
-# Replace with your specific Google Cloud Project ID
-GOOGLE_CLOUD_PROJECT_ID = 'amazing-math-417115'
+# Use the same paths as defined in app.py for consistency
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+LIVE_IMAGE_FOLDER = os.path.join(PROJECT_ROOT, 'deforestation_alerts')
+INPUT_IMAGE_PATH = os.path.join(LIVE_IMAGE_FOLDER, 'latest_satellite_image.tif')
 
-# Using a new AOI for live detection (e.g., in Bolivia)
-AOI_COORDINATES = [
-    [-63.02, -14.99],
-    [-62.97, -14.99],
-    [-62.97, -15.02],
-    [-63.02, -15.02],
-    [-63.02, -14.99]
-]
-
-# Define the folder and filename for the live image
-DATA_FOLDER = '../deforestation_alerts'
-INPUT_IMAGE_PATH = os.path.join(DATA_FOLDER, 'latest_satellite_image.tif')
-# Labels are not needed for live detection, so this path is not used
-LABELS_PATH = None 
+# --- Google Earth Engine Authentication ---
+def authenticate_and_initialize_gee():
+    """Authenticates and initializes the Google Earth Engine API."""
+    try:
+        GOOGLE_CLOUD_PROJECT_ID = 'amazing-math-417115'
+        ee.Initialize(project=GOOGLE_CLOUD_PROJECT_ID)
+        print("Earth Engine initialized successfully.")
+        return True
+    except Exception as e:
+        print(f"Authentication failed: {e}")
+        print("Please ensure you have authenticated with 'earthengine authenticate' and your Project ID is correct.")
+        return False
 
 # New function to download with retries
 def download_file(url, local_path, retries=5):
@@ -29,41 +31,37 @@ def download_file(url, local_path, retries=5):
     for i in range(retries):
         try:
             print(f"Attempting to download {os.path.basename(local_path)} (Attempt {i+1}/{retries})...")
-            response = requests.get(url, stream=True)
+            response = requests.get(url, stream=True, timeout=30)
             response.raise_for_status()
-
             with open(local_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
-
-            print(f"✅ Download successful: {local_path}")
+            print("Download successful.")
             return True
         except requests.exceptions.RequestException as e:
-            print(f"❌ Download failed: {e}")
+            print(f"Download failed: {e}")
             if i < retries - 1:
-                print("Retrying in 5 seconds...")
-                import time
-                time.sleep(5)
+                print("Retrying...")
             else:
-                print("❌ Max retries exceeded. Download failed.")
+                print("Max retries reached. Download failed.")
                 return False
-    return False
 
-def authenticate_and_initialize_gee():
-    """Authenticates and initializes the Google Earth Engine API with a specific project."""
-    try:
-        ee.Initialize(project=GOOGLE_CLOUD_PROJECT_ID)
-        print("Earth Engine initialized successfully.")
-    except Exception as e:
-        print(f"Authentication failed: {e}")
-        print("Please run 'earthengine authenticate' in your terminal and check your Project ID.")
-        sys.exit(1)
-
-def fetch_and_save_data():
-    """Fetches the latest Sentinel-2 image for live detection."""
+def fetch_live_image(lat, lon):
+    """
+    Fetches the latest Sentinel-2 image for a given latitude and longitude.
+    
+    Args:
+        lat (float): Latitude of the center point.
+        lon (float): Longitude of the center point.
+        
+    Returns:
+        bool: True if the image was successfully downloaded, False otherwise.
+    """
     print("Starting to fetch input image for live detection...")
 
-    aoi = ee.Geometry.Polygon(AOI_COORDINATES)
+    # Define a small square Area of Interest (AOI) around the lat/lon
+    # 0.01 degrees is roughly 1.1 km
+    aoi = ee.Geometry.Rectangle([lon - 0.01, lat - 0.01, lon + 0.01, lat + 0.01])
 
     # --- Fetch the Latest Sentinel-2 Image (Input Data) ---
     end_date = datetime.now()
@@ -82,9 +80,9 @@ def fetch_and_save_data():
         print("No suitable Sentinel-2 images found in the date range. Please try a different AOI or date window.")
         return False
 
+    # Select the B4 (Red), B3 (Green), and B2 (Blue) bands
     sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
     
-    # Get download URL for the sentinel image only
     try:
         sentinel_url = sentinel_image.getDownloadUrl({
             'scale': 10,
@@ -93,15 +91,11 @@ def fetch_and_save_data():
             'format': 'GEO_TIFF'
         })
     except ee.EEException as e:
-        print(f"Error getting download URL: {e}")
+        print(f"Error getting download URL from Earth Engine: {e}")
         return False
-
-    # --- Download the file ---
-    os.makedirs(DATA_FOLDER, exist_ok=True)
-    input_success = download_file(sentinel_url, INPUT_IMAGE_PATH)
-
-    return input_success
-
-if __name__ == '__main__':
-    authenticate_and_initialize_gee()
-    fetch_and_save_data()
+        
+    # Create the directory if it doesn't exist
+    os.makedirs(LIVE_IMAGE_FOLDER, exist_ok=True)
+    
+    # Download the image
+    return download_file(sentinel_url, INPUT_IMAGE_PATH)

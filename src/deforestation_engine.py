@@ -47,11 +47,24 @@ def run_detection_on_image(image_path, model_path):
         # Read the satellite image
         print(f"Reading satellite image from {image_path}...")
         with rasterio.open(image_path) as src:
-            # We are expecting a 3-band RGB image from Sentinel-2
             image_array = src.read()
-            original_shape = image_array.shape[1:]  # (height, width)
-            image_array = np.moveaxis(image_array, 0, -1)
             print("Image read successfully.")
+
+        # --- FIX: Check and transpose image dimensions if needed ---
+        # The image array from rasterio is (channels, height, width). 
+        # The dimensions might be swapped, e.g., (3, 446, 447) instead of (3, 447, 446).
+        # We need to handle this to match the model's expected input shape.
+        
+        # Transpose to (height, width, channels)
+        image_array = np.moveaxis(image_array, 0, -1)
+
+        # Check if the dimensions are swapped and correct them
+        if image_array.shape[0] != target_height or image_array.shape[1] != target_width:
+            print("Warning: Image dimensions are swapped. Correcting...")
+            image_array = image_array.transpose((1, 0, 2))
+        
+        original_shape = image_array.shape[:2]  # Now the original shape is guaranteed to be correct
+        # --- END OF FIX ---
 
         # Preprocess the image for the model
         print("Preprocessing image...")
@@ -106,3 +119,4 @@ def run_detection_on_image(image_path, model_path):
     except Exception as e:
         print(f"An unexpected error occurred during detection: {e}")
         return None, None, 0
+

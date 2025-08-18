@@ -85,7 +85,9 @@ def fetch_live_image(lat, lon):
         .first()
     )
 
-    if not sentinel_image:
+    if sentinel_image:
+        sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
+    else:
         print("No suitable Sentinel-2 images found.")
         return False
 

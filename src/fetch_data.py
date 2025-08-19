@@ -1,90 +1,89 @@
+# src/fetch_data.py
+
 import ee
 import requests
 import os
 import sys
 from datetime import datetime, timedelta
+import time
+import logging
 
-# --- Configuration ---
-# Replace with your specific Google Cloud Project ID
-GOOGLE_CLOUD_PROJECT_ID = 'amazing-math-417115'
-
-# Using a new AOI for live detection (e.g., in Bolivia)
-AOI_COORDINATES = [
-    [-63.02, -14.99],
-    [-62.97, -14.99],
-    [-62.97, -15.02],
-    [-63.02, -15.02],
-    [-63.02, -14.99]
-]
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define the folder and filename for the live image
 DATA_FOLDER = '../deforestation_alerts'
-INPUT_IMAGE_PATH = os.path.join(DATA_FOLDER, 'latest_satellite_image.tif')
-# Labels are not needed for live detection, so this path is not used
-LABELS_PATH = None 
+LIVE_IMAGE_PATH = os.path.join(DATA_FOLDER, 'latest_satellite_image.tif')
+HISTORICAL_IMAGE_FOLDER = os.path.join(DATA_FOLDER, 'historical')
 
-# New function to download with retries
+def authenticate_and_initialize_gee():
+    """Authenticates and initializes the Google Earth Engine API."""
+    try:
+        # Use your specific Google Cloud Project ID
+        GOOGLE_CLOUD_PROJECT_ID = 'amazing-math-417115'
+        ee.Initialize(project=GOOGLE_CLOUD_PROJECT_ID)
+        logging.info("Earth Engine initialized successfully.")
+        return True
+    except Exception as e:
+        logging.error(f"Authentication failed: {e}")
+        return False
+
 def download_file(url, local_path, retries=5):
     """Downloads a file from a URL with retry logic."""
     for i in range(retries):
         try:
-            print(f"Attempting to download {os.path.basename(local_path)} (Attempt {i+1}/{retries})...")
-            response = requests.get(url, stream=True)
+            logging.info(f"Attempting to download {os.path.basename(local_path)} (Attempt {i+1}/{retries})...")
+            response = requests.get(url, stream=True, timeout=60)
             response.raise_for_status()
+
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
             with open(local_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            print(f"✅ Download successful: {local_path}")
-            return True
+            logging.info(f"✅ Download successful: {local_path}")
+            return True, "Download successful."
         except requests.exceptions.RequestException as e:
-            print(f"❌ Download failed: {e}")
+            logging.error(f"❌ Download failed: {e}")
             if i < retries - 1:
-                print("Retrying in 5 seconds...")
-                import time
+                logging.info("Retrying in 5 seconds...")
                 time.sleep(5)
             else:
-                print("❌ Max retries exceeded. Download failed.")
-                return False
-    return False
+                logging.error(f"❌ Max retries exceeded. Download failed.")
+                return False, f"Download failed after {retries} retries."
+    return False, "Download process did not complete."
 
-def authenticate_and_initialize_gee():
-    """Authenticates and initializes the Google Earth Engine API with a specific project."""
-    try:
-        ee.Initialize(project=GOOGLE_CLOUD_PROJECT_ID)
-        print("Earth Engine initialized successfully.")
-    except Exception as e:
-        print(f"Authentication failed: {e}")
-        print("Please run 'earthengine authenticate' in your terminal and check your Project ID.")
-        sys.exit(1)
+def fetch_live_image(lat, lon):
+    """
+    Fetches the latest Sentinel-2 image for a given latitude and longitude.
+    """
+    if not authenticate_and_initialize_gee():
+        return False, "Failed to authenticate with Earth Engine."
 
-def fetch_and_save_data():
-    """Fetches the latest Sentinel-2 image for live detection."""
-    print("Starting to fetch input image for live detection...")
+    # Define the area of interest (AOI) as a point
+    aoi = ee.Geometry.Point(lon, lat).buffer(1000)
 
-    aoi = ee.Geometry.Polygon(AOI_COORDINATES)
-
-    # --- Fetch the Latest Sentinel-2 Image (Input Data) ---
+    # Fetch the latest Sentinel-2 Image
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=90)
+    start_date = end_date - timedelta(days=365)
 
     sentinel_image = (
         ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
         .filterDate(start_date, end_date)
-        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
+        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 50))
         .filterBounds(aoi)
         .sort('system:time_start', False)
         .first()
     )
 
-    if not sentinel_image:
-        print("No suitable Sentinel-2 images found in the date range. Please try a different AOI or date window.")
-        return False
+    if not sentinel_image.getInfo():
+        return False, "No suitable Sentinel-2 images found in the date range. Please try a different location or date window."
 
+    # Select the RGB bands
     sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
-    
-    # Get download URL for the sentinel image only
+
     try:
         sentinel_url = sentinel_image.getDownloadUrl({
             'scale': 10,
@@ -93,15 +92,79 @@ def fetch_and_save_data():
             'format': 'GEO_TIFF'
         })
     except ee.EEException as e:
-        print(f"Error getting download URL: {e}")
-        return False
+        return False, f"Error generating download URL: {e}"
 
-    # --- Download the file ---
-    os.makedirs(DATA_FOLDER, exist_ok=True)
-    input_success = download_file(sentinel_url, INPUT_IMAGE_PATH)
+    # Download the image
+    success, message = download_file(sentinel_url, LIVE_IMAGE_PATH)
+    return success, message
 
-    return input_success
 
-if __name__ == '__main__':
-    authenticate_and_initialize_gee()
-    fetch_and_save_data()
+def fetch_image_for_date_range(lat, lon, start_date_str, end_date_str, image_type):
+    """
+    Fetches a single Sentinel-2 image for a given date range and location.
+
+    Args:
+        lat (float): Latitude of the location.
+        lon (float): Longitude of the location.
+        start_date_str (str): Start date string (YYYY-MM-DD).
+        end_date_str (str): End date string (YYYY-MM-DD).
+        image_type (str): A label for the image ('initial' or 'final').
+
+    Returns:
+        tuple: A tuple containing success (bool) and the local file path (str) or an error message (str).
+    """
+    if not authenticate_and_initialize_gee():
+        return False, "Failed to authenticate with Earth Engine."
+
+    try:
+        # Define the date range
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+    except ValueError as e:
+        return False, f"Invalid date format: {e}. Please use YYYY-MM-DD."
+
+    # Define the area of interest (AOI) as a point
+    aoi = ee.Geometry.Point(lon, lat).buffer(1000)
+
+    # Search within a flexible date window (e.g., 7 days) to find a suitable image.
+    search_start_date = start_date - timedelta(days=3)
+    search_end_date = start_date + timedelta(days=3)
+    logging.info(f"Attempting to find a {image_type} image between {search_start_date.strftime('%Y-%m-%d')} and {search_end_date.strftime('%Y-%m-%d')}")
+
+    # Fetch the image for the specified date range
+    sentinel_image = (
+        ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+        .filterDate(search_start_date, search_end_date)
+        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 50))
+        .filterBounds(aoi)
+        .sort('system:time_start', False)
+        .first()
+    )
+
+    if not sentinel_image.getInfo():
+        return False, f"No suitable Sentinel-2 images found for the {image_type} period ({start_date_str} to {end_date_str}). Please try different dates."
+
+    # Select the RGB bands
+    sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
+
+    try:
+        sentinel_url = sentinel_image.getDownloadUrl({
+            'scale': 10,
+            'crs': 'EPSG:4326',
+            'region': aoi.getInfo()['coordinates'],
+            'format': 'GEO_TIFF'
+        })
+    except ee.EEException as e:
+        return False, f"Error generating download URL: {e}"
+        
+    # Define the local path for the historical image
+    local_path = os.path.join(HISTORICAL_IMAGE_FOLDER, f'satellite_image_{image_type}.tif')
+
+    # Download the image
+    success, message = download_file(sentinel_url, local_path)
+    
+    if not success:
+        return False, message
+    
+    return True, local_path
+

@@ -7,8 +7,9 @@ import requests
 import ee
 from datetime import datetime, timedelta
 
-# Import the core detection logic
-from deforestation_engine import run_detection_on_image
+# Import the core detection and fetching logic
+from deforestation_engine import run_detection_on_comparison, run_detection_on_image
+from fetch_data import fetch_image_for_date_range, fetch_live_image, authenticate_and_initialize_gee
 
 # Initialize the Flask app and define paths
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -19,117 +20,46 @@ LIVE_IMAGE_FOLDER = os.path.join(PROJECT_ROOT, 'deforestation_alerts')
 LIVE_IMAGE_PATH = os.path.join(LIVE_IMAGE_FOLDER, 'latest_satellite_image.tif')
 MODEL_PATH = os.path.join(PROJECT_ROOT, 'model', 'deforestation_3band_model.h5')
 
-# --- Google Earth Engine Authentication ---
-def authenticate_and_initialize_gee():
-    """Authenticates and initializes the Google Earth Engine API."""
-    try:
-        # Use your specific Google Cloud Project ID
-        GOOGLE_CLOUD_PROJECT_ID = 'amazing-math-417115' 
-        ee.Initialize(project=GOOGLE_CLOUD_PROJECT_ID)
-        print("Earth Engine initialized successfully.")
-    except Exception as e:
-        print(f"Authentication failed: {e}")
-        print("Please ensure you have authenticated with 'earthengine authenticate' and your Project ID is correct.")
-        return False
-    return True
-
-# New function to download with retries
-def download_file(url, local_path, retries=5):
-    """Downloads a file from a URL with retry logic."""
-    for i in range(retries):
-        try:
-            print(f"Attempting to download {os.path.basename(local_path)} (Attempt {i+1}/{retries})...")
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            with open(local_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-            print(f"✅ Download successful: {local_path}")
-            return True
-        except requests.exceptions.RequestException as e:
-            print(f"❌ Download failed: {e}")
-            if i < retries - 1:
-                print("Retrying in 5 seconds...")
-                import time
-                time.sleep(5)
-            else:
-                print("❌ Max retries exceeded. Download failed.")
-                return False
-    return False
-
-def fetch_live_image(lat, lon):
-    """Fetches a live Sentinel-2 image for a given coordinate."""
-    print("Starting to fetch input image for live detection...")
-    
-    # Define a small Area of Interest (AOI) around the given coordinates
-    aoi_coords = [
-        [lon - 0.02, lat - 0.02],
-        [lon + 0.02, lat - 0.02],
-        [lon + 0.02, lat + 0.02],
-        [lon - 0.02, lat + 0.02],
-        [lon - 0.02, lat - 0.02]
-    ]
-    aoi = ee.Geometry.Polygon(aoi_coords)
-
-    # Fetch the latest, cloud-free image
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=90)
-
-    sentinel_image = (
-        ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-        .filterDate(start_date, end_date)
-        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
-        .filterBounds(aoi)
-        .sort('system:time_start', False)
-        .first()
-    )
-
-    if sentinel_image:
-        sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
-    else:
-        print("No suitable Sentinel-2 images found.")
-        return False
-
-    sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
-    
-    try:
-        sentinel_url = sentinel_image.getDownloadUrl({
-            'scale': 10,
-            'crs': 'EPSG:4326',
-            'region': aoi.getInfo()['coordinates'],
-            'format': 'GEO_TIFF'
-        })
-    except ee.EEException as e:
-        print(f"Error getting download URL: {e}")
-        return False
-
-    return download_file(sentinel_url, LIVE_IMAGE_PATH)
-
 
 @app.route('/')
 def index():
-    """Renders the main HTML page."""
+    """Main route for the dashboard."""
     return render_template('index.html')
 
-@app.route('/detect', methods=['GET'])
-def detect_deforestation():
-    """
-    API endpoint to trigger the deforestation detection.
-    This now accepts latitude and longitude from the frontend.
-    """
-    lat = request.args.get('lat', type=float)
-    lon = request.args.get('lon', type=float)
+@app.route('/historical')
+def historical():
+    """Route for the historical deforestation detection page."""
+    return render_template('historical.html')
 
-    if lat is None or lon is None:
-        return jsonify({"error": "Latitude and longitude are required."}), 400
+
+@app.route('/detect-live')
+def detect_deforestation_live():
+    """
+    API endpoint to detect deforestation for a given lat/lon for the latest image.
+    1. Fetches the latest satellite image.
+    2. Runs the trained model on the image.
+    3. Returns the blended image and the percentage.
+    """
+    # Get parameters from URL
+    lat_str = request.args.get('lat')
+    lon_str = request.args.get('lon')
+
+    if not lat_str or not lon_str:
+        return jsonify({"error": "Latitude and longitude parameters are required."}), 400
+
+    try:
+        lat = float(lat_str)
+        lon = float(lon_str)
+    except ValueError:
+        return jsonify({"error": "Invalid latitude or longitude format. Must be a number."}), 400
 
     # Step 1: Fetch the new live image
     if not authenticate_and_initialize_gee():
         return jsonify({"error": "Failed to authenticate with Earth Engine."}), 500
     
-    if not fetch_live_image(lat, lon):
-        return jsonify({"error": "Failed to download a new satellite image."}), 500
+    success_fetch, message_fetch = fetch_live_image(lat, lon)
+    if not success_fetch:
+        return jsonify({"error": message_fetch}), 500
 
     # Step 2: Run the detection on the newly downloaded image
     blended_image, mask_image, percentage = run_detection_on_image(
@@ -144,19 +74,91 @@ def detect_deforestation():
     results_dir = os.path.join(app.root_path, 'static', 'results')
     os.makedirs(results_dir, exist_ok=True)
     
+    blended_path = os.path.join(results_dir, 'live_blended.png')
+    
+    blended_image.save(blended_path)
+
+    # Step 4: Return the paths and percentage to the frontend
+    return jsonify({
+        "success": True,
+        "percentage": f"{percentage:.2f}%",
+        "blended_image_url": f"/static/results/live_blended.png?_t={datetime.now().timestamp()}"
+    })
+
+
+@app.route('/detect')
+def detect_historical_deforestation():
+    """
+    API endpoint to detect deforestation for a given lat/lon and date range.
+    1. Fetches two satellite images for the date range.
+    2. Runs the trained model on both images.
+    3. Compares the results and returns the percentage of new deforestation.
+    """
+    # Get parameters from URL
+    lat_str = request.args.get('lat')
+    lon_str = request.args.get('lon')
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if not lat_str or not lon_str or not start_date_str or not end_date_str:
+        return jsonify({"error": "Latitude, longitude, start_date, and end_date parameters are required."}), 400
+
+    try:
+        lat = float(lat_str)
+        lon = float(lon_str)
+    except ValueError:
+        return jsonify({"error": "Invalid latitude or longitude format. Must be a number."}), 400
+
+    # Step 1: Authenticate Earth Engine
+    if not authenticate_and_initialize_gee():
+        return jsonify({"error": "Failed to authenticate with Earth Engine."}), 500
+
+    # Step 2: Fetch two images for the date range
+    # Fix: Add the 'image_type' argument
+    success_initial, initial_image_path = fetch_image_for_date_range(
+        lat, lon, start_date_str, start_date_str, 'initial'
+    )
+    if not success_initial:
+        return jsonify({"error": initial_image_path}), 500
+
+    # Fix: Add the 'image_type' argument
+    success_final, final_image_path = fetch_image_for_date_range(
+        lat, lon, end_date_str, end_date_str, 'final'
+    )
+    if not success_final:
+        return jsonify({"error": final_image_path}), 500
+    
+    # Step 3: Run the comparison detection
+    blended_image, mask_image, percentage = run_detection_on_comparison(
+        initial_image_path=initial_image_path,
+        final_image_path=final_image_path,
+        model_path=MODEL_PATH
+    )
+
+    if blended_image is None:
+        return jsonify({"error": "Failed to run detection. Check model and image paths."}), 500
+
+    # Step 4: Save the temporary result images for the frontend
+    results_dir = os.path.join(app.root_path, 'static', 'results')
+    os.makedirs(results_dir, exist_ok=True)
+    
     blended_path = os.path.join(results_dir, 'blended.png')
     mask_path = os.path.join(results_dir, 'mask.png')
     
     blended_image.save(blended_path)
     mask_image.save(mask_path)
 
-    # Step 4: Return the paths and percentage to the frontend
+    # Step 5: Return the paths and percentage to the frontend
     return jsonify({
         "success": True,
         "percentage": f"{percentage:.2f}%",
-        "blended_image_url": f"/static/results/blended.png?ts={datetime.now().timestamp()}",
-        "mask_image_url": f"/static/results/mask.png?ts={datetime.now().timestamp()}"
+        "blended_image_url": f"/static/results/blended.png?_t={datetime.now().timestamp()}",
+        "mask_image_url": f"/static/results/mask.png?_t={datetime.now().timestamp()}"
     })
 
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Initial authentication for Earth Engine
+    if authenticate_and_initialize_gee():
+        # Start the Flask app
+        app.run(debug=True)

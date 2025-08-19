@@ -4,345 +4,687 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ForestGuard Dashboard</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        :root {
+            --primary-color: #38a169; /* A nice forest green */
+            --primary-dark: #2f855a;
+            --background-color: #f7fafc;
+            --card-background: #ffffff;
+            --sidebar-background: #edf2f7;
+            --text-color: #2d3748;
+            --text-light: #718096;
+            --border-color: #e2e8f0;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            --radius-md: 0.5rem;
+            --radius-lg: 1rem;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            min-height: 100vh;
+            overflow: hidden;
         }
+
         .sidebar {
-            background-color: #1a202c; /* Dark charcoal */
-            color: #e2e8f0;
+            width: 280px;
+            background-color: var(--sidebar-background);
+            padding: 2rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            border-right: 1px solid var(--border-color);
+            transition: all 0.3s ease;
         }
-        .nav-item.active {
-            background-color: #4a5568;
-            border-left: 4px solid #48bb78; /* Green accent */
+        
+        .sidebar-logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 2rem;
+            text-align: center;
         }
+
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-nav-item a {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            text-decoration: none;
+            color: var(--text-light);
+            font-weight: 500;
+            border-radius: var(--radius-md);
+            transition: all 0.2s ease;
+        }
+
+        .sidebar-nav-item a:hover {
+            background-color: var(--border-color);
+            color: var(--text-color);
+        }
+
+        .sidebar-nav-item a.active {
+            background-color: var(--primary-color);
+            color: var(--card-background);
+            box-shadow: var(--shadow);
+        }
+
+        .main-content {
+            flex-grow: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1.5rem;
+        }
+
         .card {
-            background-color: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background-color: var(--card-background);
+            padding: 1.5rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
+
+        .card-header {
+            font-size: 0.9rem;
+            color: var(--text-light);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        .dashboard-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 900px) {
+            .dashboard-layout {
+                grid-template-columns: 1fr 1.5fr;
+            }
+        }
+
+        .panel {
+            background-color: var(--card-background);
+            padding: 2rem;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+        }
+
+        .panel-header {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .input-group label {
+            font-weight: 500;
+            color: var(--text-light);
+        }
+
+        .input-group input {
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            transition: border-color 0.2s;
+            font-size: 1rem;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        button {
+            width: 100%;
+            padding: 1rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: var(--primary-dark);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .status-info { background-color: #ebf8ff; color: #4299e1; }
+        .status-success { background-color: #f0fff4; color: #48bb78; }
+        .status-error { background-color: #fff5f5; color: #f56565; }
+
+        .image-results {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        @media (min-width: 768px) {
+            .image-results {
+                flex-direction: row;
+                justify-content: space-around;
+            }
+        }
+
+        .image-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .image-container h3 {
+            font-size: 1.1rem;
+            color: var(--text-color);
+            margin: 0;
+            text-align: center;
+        }
+        
+        .image-container img {
+            width: 100%;
+            height: auto;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+            display: block;
+        }
+
+        .alert-box {
+            font-size: 1.2rem;
+            font-weight: 700;
+            padding: 1.5rem;
+            border-radius: var(--radius-md);
+            text-align: center;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+        }
+        .alert-on { background-color: #f56565; color: white; }
+        .alert-off { background-color: #48bb78; color: white; }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            background-color: var(--card-background);
+            border-radius: var(--radius-md);
+            margin-top: auto;
+            box-shadow: var(--shadow);
+        }
+
+        .user-profile img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--border-color);
+        }
+
+        .user-profile-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-profile-name {
+            font-weight: 600;
+        }
+
+        .user-profile-role {
+            font-size: 0.8rem;
+            color: var(--text-light);
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 70px;
+                padding: 2rem 0.5rem;
+            }
+            .sidebar-logo {
+                font-size: 1.2rem;
+                margin-bottom: 1rem;
+            }
+            .sidebar-nav-item a {
+                padding: 1rem 0.5rem;
+                justify-content: center;
+            }
+            .sidebar-nav-item span {
+                display: none;
+            }
+            .user-profile-info {
+                display: none;
+            }
+            .user-profile {
+                justify-content: center;
+            }
+            .main-content {
+                padding: 1rem;
+            }
+        }
+
+        .map-container {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background-color: #e2e8f0;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .map-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .alert-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .alert-item {
+            background-color: #f7fafc;
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            border-radius: var(--radius-md);
+        }
+
+        .alert-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .alert-item-header .location {
+            color: var(--primary-dark);
+        }
+
+        .alert-item-body {
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .gallery-item {
+            position: relative;
+            overflow: hidden;
+            border-radius: var(--radius-md);
+            aspect-ratio: 1 / 1;
+            transition: transform 0.2s ease;
+        }
+        
+        .gallery-item:hover {
+            transform: scale(1.03);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .gallery-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.6));
+            color: white;
+            padding: 1rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transform: translateY(100%);
+            transition: transform 0.2s ease;
+        }
+        
+        .gallery-item:hover .gallery-overlay {
+            transform: translateY(0);
+        }
+
+        .gallery-overlay .date {
+            font-size: 0.8rem;
+            color: #d1d5db;
+        }
+        
     </style>
 </head>
-<body class="flex h-screen overflow-hidden">
+<body>
 
-    <!-- Sidebar -->
-    <aside class="sidebar w-64 p-6 flex flex-col justify-between">
-        <div>
-            <div class="flex items-center space-x-2 mb-8">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 text-green-400">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                </svg>
-                <span class="text-2xl font-bold text-white">ForestGuard</span>
-            </div>
-            <nav class="space-y-2">
-                <a href="#" id="live-alerts-link" class="nav-item flex items-center p-3 rounded-lg active">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mr-4">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                        <line x1="12" y1="9" x2="12" y2="13"></line>
-                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                    </svg>
-                    <span>Live Alerts</span>
-                </a>
-                <a href="#" id="historical-analysis-link" class="nav-item flex items-center p-3 rounded-lg hover:bg-gray-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400 mr-4">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <polygon points="12 6 12 12 16 14"></polygon>
-                    </svg>
-                    <span>Historical Analysis</span>
-                </a>
-            </nav>
+<div class="sidebar">
+    <div class="sidebar-logo">ForestGuard</div>
+    <ul class="sidebar-nav">
+        <li class="sidebar-nav-item"><a href="#" data-section="dashboard" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-dashboard"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg><span>Dashboard</span></a></li>
+        <li class="sidebar-nav-item"><a href="#" data-section="satellite-view"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-satellite"><path d="M13.5 14.5a2.5 2.5 0 0 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path d="M17.43 14.82a6.37 6.37 0 0 0 0-9.64 6.37 6.37 0 0 0-9.64 0 6.37 6.37 0 0 0 0 9.64L10 17l2 2 2-2 3.43-2.18Z"/><path d="M11.64 12.64 8 16l-1.6-1.6"/><path d="m14 11-1.6-1.6"/><circle cx="12" cy="12" r="2.5"/><path d="m10.82 2.82-1.5 1.5"/><path d="M14.28 5.72 17.5 9"/><path d="m2.82 10.82 1.5 1.5"/><path d="m5.72 14.28 3.22 3.22"/><path d="m10.82 21.18 1.5-1.5"/><path d="m14.28 18.28 3.22 3.22"/><path d="m21.18 13.18-1.5-1.5"/><path d="m18.28 9.72-3.22-3.22"/></svg><span>Satellite View</span></a></li>
+        <li class="sidebar-nav-item"><a href="#" data-section="live-alerts"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell-ring"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.36 17.27a2 2 0 1 0 3.28 0"/><path d="M14 22a4 4 0 0 0-8 0"/></svg><span>Live Alerts</span></a></li>
+        <li class="sidebar-nav-item"><a href="#" data-section="geo-mapping"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg><span>Geo Mapping</span></a></li>
+        <li class="sidebar-nav-item"><a href="#"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg><span>Reports</span></a></li>
+    </ul>
+    <div class="user-profile">
+        <img src="https://placehold.co/40x40/2d3748/ffffff?text=U" alt="User Profile">
+        <div class="user-profile-info">
+            <span class="user-profile-name">Admin User</span>
+            <span class="user-profile-role">Forest Protection Agency</span>
         </div>
-        <div class="flex items-center space-x-3 text-sm">
-            <div class="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-white">
-                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                </svg>
+    </div>
+</div>
+
+<div class="main-content">
+    <div id="dashboard" class="content-section active">
+        <div class="summary-cards">
+            <div class="card">
+                <div class="card-header">
+                    <span>Active Alerts</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12" y1="17" y2="17"/></svg>
+                </div>
+                <div class="card-value">0</div>
             </div>
-            <div>
-                <div class="font-semibold text-white">Admin User</div>
-                <div class="text-gray-400">Forest Protection Agency</div>
+            <div class="card">
+                <div class="card-header">
+                    <span>Area Lost Today</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f56565" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-line-chart"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                </div>
+                <div class="card-value">0 ha</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span>Detection Accuracy</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#48bb78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/></svg>
+                </div>
+                <div class="card-value">N/A</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span>Monitored Regions</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin"><path d="M12 18s-4-4.81-4-9a4 4 0 0 1 8 0c0 4.19-4 9-4 9z"/><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+                </div>
+                <div class="card-value">N/A</div>
             </div>
         </div>
-    </aside>
 
-    <!-- Main Content -->
-    <main class="flex-1 p-8 overflow-y-auto">
-        <h1 id="main-title" class="text-3xl font-bold text-gray-800 mb-8">Live Alerts</h1>
+        <div class="dashboard-layout">
+            <div class="panel">
+                <h2 class="panel-header">Deforestation Detection</h2>
+                <p style="margin-top:-1rem; margin-bottom: 2rem; color:var(--text-light)">Enter the latitude, longitude, and date to analyze.</p>
+                <div class="input-group">
+                    <label for="latitude">Latitude</label>
+                    <input type="number" id="latitude" placeholder="Enter latitude..." value="-10.74">
+                </div>
+                <div class="input-group">
+                    <label for="longitude">Longitude</label>
+                    <input type="number" id="longitude" placeholder="Enter longitude..." value="-63.15">
+                </div>
+                <div class="input-group">
+                    <label for="date">Date</label>
+                    <input type="date" id="date" value="2020-05-15">
+                </div>
+                <button id="detect-button">Detect Deforestation</button>
+                <p id="status-message" class="status-message"></p>
+            </div>
 
-        <!-- Live Alerts Content Section -->
-        <section id="live-alerts-section" class="active-section">
-            <!-- Top Cards Section - Same as before -->
-            <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                <div class="card p-6 flex flex-col items-center justify-center text-center">
-                    <div class="flex items-center space-x-2">
-                        <h2 class="text-xl font-semibold text-gray-800">Active Alerts</h2>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-500">
-                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                            <line x1="12" y1="9" x2="12" y2="13"></line>
-                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                        </svg>
+            <div class="panel" id="results-panel" style="display: none;">
+                <h2 class="panel-header">Live Detection Results</h2>
+                <div class="image-results">
+                    <div class="image-container">
+                        <h3>Before</h3>
+                        <img id="before-image" src="" alt="Before Image">
                     </div>
-                    <p class="text-4xl font-bold mt-2 text-gray-900">0</p>
-                </div>
-                <div class="card p-6 flex flex-col items-center justify-center text-center">
-                    <h2 class="text-xl font-semibold text-gray-800">Area Lost Today</h2>
-                    <p class="text-4xl font-bold mt-2 text-gray-900">0 ha</p>
-                </div>
-                <div class="card p-6 flex flex-col items-center justify-center text-center">
-                    <div class="flex items-center space-x-2">
-                        <h2 class="text-xl font-semibold text-gray-800">Detection Accuracy</h2>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500">
-                            <path d="M12 19V5"></path>
-                            <polyline points="5 12 12 5 19 12"></polyline>
-                        </svg>
-                    </div>
-                    <p class="text-4xl font-bold mt-2 text-gray-900">89.6</p>
-                </div>
-                <div class="card p-6 flex flex-col items-center justify-center text-center">
-                    <div class="flex items-center space-x-2">
-                        <h2 class="text-xl font-semibold text-gray-800">Monitored Regions</h2>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500">
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                            <circle cx="12" cy="10" r="3"></circle>
-                        </svg>
-                    </div>
-                    <p class="text-4xl font-bold mt-2 text-gray-900">N/A</p>
-                </div>
-            </section>
-
-            <!-- Deforestation Detection Section -->
-            <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <!-- Left Side - Input Form -->
-                <div class="card p-8">
-                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Deforestation Detection</h2>
-                    <p class="text-gray-600 mb-6">Enter the latitude and longitude of an area to analyze.</p>
-
-                    <div class="space-y-4">
-                        <div>
-                            <label for="latitude" class="block text-gray-700 font-medium mb-1">Latitude:</label>
-                            <input type="text" id="latitude" name="latitude" value="-15.01" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
-                        </div>
-                        <div>
-                            <label for="longitude" class="block text-gray-700 font-medium mb-1">Longitude:</label>
-                            <input type="text" id="longitude" name="longitude" value="-62.99" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
-                        </div>
-                    </div>
-
-                    <button id="detectButton" class="w-full mt-6 px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150">
-                        Detect Deforestation
-                    </button>
-                    <p id="deforestationResult" class="text-center mt-4 text-green-600 font-semibold">
-                        Deforestation detected: 0.00%
-                    </p>
-                </div>
-
-                <!-- Right Side - Detection Results -->
-                <div class="card p-8">
-                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Live Detection Results</h2>
-                    <div class="space-y-6">
-                        <div>
-                            <h3 class="font-medium text-gray-700 mb-2">Deforestation Overlay</h3>
-                            <img id="overlayImage" src="https://placehold.co/400x400/e2e8f0/fff?text=No+Image" alt="Deforestation Overlay" class="w-full h-auto rounded-lg border border-gray-200">
-                        </div>
-                        <div>
-                            <h3 class="font-medium text-gray-700 mb-2">Predicted Mask</h3>
-                            <img id="maskImage" src="https://placehold.co/400x400/e2e8f0/fff?text=No+Image" alt="Predicted Mask" class="w-full h-auto rounded-lg border border-gray-200">
-                        </div>
+                    <div class="image-container">
+                        <h3>After</h3>
+                        <img id="after-image" src="" alt="After Image">
                     </div>
                 </div>
-            </section>
-        </section>
-
-        <!-- Historical Analysis Content Section -->
-        <section id="historical-analysis-section" class="hidden">
-            <div class="card p-8">
-                <h2 class="text-2xl font-semibold text-gray-800 mb-4">Historical Deforestation Analysis</h2>
-                <p class="text-gray-600 mb-6">Compare two time periods to detect change.</p>
-
-                <div class="space-y-4">
-                    <div>
-                        <label for="historicalLatitude" class="block text-gray-700 font-medium mb-1">Latitude:</label>
-                        <input type="text" id="historicalLatitude" name="historicalLatitude" value="-15.01" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                <div class="image-results">
+                    <div class="image-container">
+                        <h3>Blended Image</h3>
+                        <img id="blended-image" src="" alt="Blended Image with Deforestation">
                     </div>
-                    <div>
-                        <label for="historicalLongitude" class="block text-gray-700 font-medium mb-1">Longitude:</label>
-                        <input type="text" id="historicalLongitude" name="historicalLongitude" value="-62.99" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
-                    </div>
-                    <div>
-                        <label for="startDate" class="block text-gray-700 font-medium mb-1">Start Date:</label>
-                        <input type="date" id="startDate" name="startDate" value="2024-01-01" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
-                    </div>
-                    <div>
-                        <label for="endDate" class="block text-gray-700 font-medium mb-1">End Date:</label>
-                        <input type="date" id="endDate" name="endDate" value="2024-06-01" class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500">
+                    <div class="image-container">
+                        <h3>Predicted Mask</h3>
+                        <img id="mask-image" src="" alt="Predicted Deforestation Mask">
                     </div>
                 </div>
+                <div class="alert-box" id="alert-box"></div>
+            </div>
+        </div>
+    </div>
 
-                <button id="historicalDetectButton" class="w-full mt-6 px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition ease-in-out duration-150">
-                    Analyze Historical Data
-                </button>
-                <p id="historicalResult" class="text-center mt-4 text-green-600 font-semibold">
-                    Change detected: 0.00%
-                </p>
-                <div class="space-y-6 mt-8">
-                    <div>
-                        <h3 class="font-medium text-gray-700 mb-2">Before Image</h3>
-                        <img id="beforeImage" src="https://placehold.co/400x400/e2e8f0/fff?text=No+Image" alt="Before Image" class="w-full h-auto rounded-lg border border-gray-200">
-                    </div>
-                    <div>
-                        <h3 class="font-medium text-gray-700 mb-2">After Image</h3>
-                        <img id="afterImage" src="https://placehold.co/400x400/e2e8f0/fff?text=No+Image" alt="After Image" class="w-full h-auto rounded-lg border border-gray-200">
-                    </div>
+    <div id="satellite-view" class="content-section">
+        <h2 class="panel-header">Satellite View</h2>
+        <p style="margin-top:-1rem; margin-bottom: 2rem; color:var(--text-light)">A live satellite view of the currently analyzed location.</p>
+        <div class="panel">
+            <div class="map-container">
+                <img id="map-image" src="https://placehold.co/1200x675/e2e8f0/718096?text=Map+View" alt="Satellite map of the area.">
+            </div>
+        </div>
+    </div>
+
+    <div id="live-alerts" class="content-section">
+        <h2 class="panel-header">Live Alerts</h2>
+        <p style="margin-top:-1rem; margin-bottom: 2rem; color:var(--text-light)">Recent alerts for detected deforestation, updating with your last analysis.</p>
+        <div class="alert-list" id="alert-list">
+            <!-- Alert items will be dynamically added here -->
+            <div class="alert-item">
+                <div class="alert-item-header">
+                    <span class="location">No alerts yet</span>
+                    <span class="date">N/A</span>
+                </div>
+                <div class="alert-item-body">
+                    Run a deforestation analysis to see the latest alert here.
                 </div>
             </div>
-        </section>
-    </main>
+        </div>
+    </div>
+    
+    <div id="geo-mapping" class="content-section">
+        <h2 class="panel-header">Analysis History</h2>
+        <p style="margin-top:-1rem; margin-bottom: 2rem; color:var(--text-light)">A gallery of recent deforestation analysis results.</p>
+        <div class="gallery" id="analysis-gallery">
+            <!-- Gallery items will be dynamically added here -->
+            <div class="gallery-item">
+                <img src="https://placehold.co/400x400/edf2f7/718096?text=Start+an+Analysis" alt="Placeholder image for a past detection.">
+                <div class="gallery-overlay">
+                    <div class="location">Start an Analysis</div>
+                    <div class="date">to see results here</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
-    <script>
-        const liveAlertsLink = document.getElementById('live-alerts-link');
-        const historicalAnalysisLink = document.getElementById('historical-analysis-link');
-        const liveAlertsSection = document.getElementById('live-alerts-section');
-        const historicalAnalysisSection = document.getElementById('historical-analysis-section');
-        const mainTitle = document.getElementById('main-title');
+<script>
+    const sections = document.querySelectorAll('.content-section');
+    const navLinks = document.querySelectorAll('.sidebar-nav-item a');
 
-        // Live Detection Elements
-        const detectButton = document.getElementById('detectButton');
-        const latitudeInput = document.getElementById('latitude');
-        const longitudeInput = document.getElementById('longitude');
-        const deforestationResult = document.getElementById('deforestationResult');
-        const overlayImage = document.getElementById('overlayImage');
-        const maskImage = document.getElementById('maskImage');
-
-        // Historical Analysis Elements
-        const historicalDetectButton = document.getElementById('historicalDetectButton');
-        const historicalLatitudeInput = document.getElementById('historicalLatitude');
-        const historicalLongitudeInput = document.getElementById('historicalLongitude');
-        const startDateInput = document.getElementById('startDate');
-        const endDateInput = document.getElementById('endDate');
-        const historicalResult = document.getElementById('historicalResult');
-        const beforeImage = document.getElementById('beforeImage');
-        const afterImage = document.getElementById('afterImage');
-
-        // Function to show/hide sections
-        function showSection(sectionId) {
-            liveAlertsSection.classList.add('hidden');
-            historicalAnalysisSection.classList.add('hidden');
-            document.getElementById(sectionId).classList.remove('hidden');
-
-            liveAlertsLink.classList.remove('active');
-            historicalAnalysisLink.classList.remove('active');
-
-            if (sectionId === 'live-alerts-section') {
-                liveAlertsLink.classList.add('active');
-                mainTitle.textContent = "Live Alerts";
-            } else if (sectionId === 'historical-analysis-section') {
-                historicalAnalysisLink.classList.add('active');
-                mainTitle.textContent = "Historical Deforestation Analysis";
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            
+            // Remove active class from all links and sections
+            navLinks.forEach(nav => nav.classList.remove('active'));
+            sections.forEach(section => section.classList.remove('active'));
+            
+            // Add active class to clicked link and corresponding section
+            const targetSection = e.target.closest('a').dataset.section;
+            if (targetSection) {
+                e.target.closest('a').classList.add('active');
+                document.getElementById(targetSection).classList.add('active');
             }
+        });
+    });
+
+    document.getElementById('detect-button').addEventListener('click', async () => {
+        const lat = document.getElementById('latitude').value;
+        const lon = document.getElementById('longitude').value;
+        const date = document.getElementById('date').value;
+        const statusMessage = document.getElementById('status-message');
+        const detectButton = document.getElementById('detect-button');
+        const resultsPanel = document.getElementById('results-panel');
+
+        if (!lat || !lon || !date) {
+            statusMessage.textContent = 'Please enter latitude, longitude, and a date.';
+            statusMessage.className = 'status-message status-error';
+            return;
         }
 
-        liveAlertsLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            showSection('live-alerts-section');
-        });
+        // 1. Show processing status and disable button
+        statusMessage.textContent = 'Processing... Please wait.';
+        statusMessage.className = 'status-message status-info';
+        detectButton.disabled = true;
+        resultsPanel.style.display = 'none';
 
-        historicalAnalysisLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            showSection('historical-analysis-section');
-        });
+        try {
+            // 2. Make the API call to the Flask backend with a single date
+            const response = await fetch(`/detect?lat=${lat}&lon=${lon}&date=${date}`);
+            const data = await response.json();
 
-        // Event listener for Live Detection
-        detectButton.addEventListener('click', async () => {
-            const lat = latitudeInput.value.trim();
-            const lon = longitudeInput.value.trim();
+            // 3. Handle the response
+            if (data.success) {
+                statusMessage.textContent = `Detection complete! Deforestation: ${data.percentage}`;
+                statusMessage.className = 'status-message status-success';
+                
+                // Show the results panel on the dashboard view
+                resultsPanel.style.display = 'block';
 
-            if (!lat || !lon) {
-                alert('Please enter both latitude and longitude.');
-                return;
-            }
-
-            const originalButtonText = detectButton.textContent;
-            detectButton.textContent = 'Detecting...';
-            detectButton.disabled = true;
-            deforestationResult.textContent = 'Analyzing...';
-            
-            overlayImage.src = "https://placehold.co/400x400/f3f4f6/333?text=Analyzing...";
-            maskImage.src = "https://placehold.co/400x400/f3f4f6/333?text=Analyzing...";
-
-            try {
-                const response = await fetch(`http://127.0.0.1:5000/detect-live?lat=${lat}&lon=${lon}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    deforestationResult.textContent = `Deforestation detected: ${data.percentage}`;
-                    overlayImage.src = `${data.blended_image_url}?_t=${new Date().getTime()}`;
-                    maskImage.src = `${data.blended_image_url}?_t=${new Date().getTime()}`; // Live endpoint doesn't return a separate mask
+                // Update the images on the dashboard view
+                document.getElementById('before-image').src = data.before_image_url;
+                document.getElementById('after-image').src = data.after_image_url;
+                document.getElementById('blended-image').src = data.blended_image_url;
+                document.getElementById('mask-image').src = data.mask_image_url;
+                
+                // Update alert message on the dashboard view
+                const alertBox = document.getElementById('alert-box');
+                const percentage = parseFloat(data.percentage);
+                
+                if (percentage > 0.1) {
+                    alertBox.textContent = `🚨 ALERT: Significant deforestation detected! (${data.percentage})`;
+                    alertBox.className = 'alert-box alert-on';
                 } else {
-                    deforestationResult.textContent = `Error: ${data.error}`;
-                    overlayImage.src = "https://placehold.co/400x400/e2e8f0/fff?text=Error";
-                    maskImage.src = "https://placehold.co/400x400/e2e8f0/fff?text=Error";
+                    alertBox.textContent = `✅ No significant deforestation detected. (${data.percentage})`;
+                    alertBox.className = 'alert-box alert-off';
                 }
-            } catch (error) {
-                deforestationResult.textContent = 'An unexpected error occurred.';
-                console.error('Fetch error:', error);
-                overlayImage.src = "https://placehold.co/400x400/e2e8f0/fff?text=Error";
-                maskImage.src = "https://placehold.co/400x400/e2e8f0/fff?text=Error";
-            } finally {
-                detectButton.textContent = originalButtonText;
-                detectButton.disabled = false;
-            }
-        });
 
-        // Event listener for Historical Analysis
-        historicalDetectButton.addEventListener('click', async () => {
-            const lat = historicalLatitudeInput.value.trim();
-            const lon = historicalLongitudeInput.value.trim();
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
+                // Update Satellite View
+                const mapImage = document.getElementById('map-image');
+                mapImage.src = `https://placehold.co/1200x675?text=Lat:${lat}+Lon:${lon}`;
 
-            if (!lat || !lon || !startDate || !endDate) {
-                alert('Please fill in all fields.');
-                return;
-            }
-
-            const originalButtonText = historicalDetectButton.textContent;
-            historicalDetectButton.textContent = 'Analyzing...';
-            historicalDetectButton.disabled = true;
-            historicalResult.textContent = 'Analyzing...';
-
-            beforeImage.src = "https://placehold.co/400x400/f3f4f6/333?text=Analyzing...";
-            afterImage.src = "https://placehold.co/400x400/f3f4f6/333?text=Analyzing...";
-
-            try {
-                const response = await fetch(`http://127.0.0.1:5000/detect-historical?lat=${lat}&lon=${lon}&start_date=${startDate}&end_date=${endDate}`);
-                const data = await response.json();
-
-                if (data.success) {
-                    historicalResult.textContent = `Change detected: ${data.percentage}`;
-                    beforeImage.src = `${data.initial_blended_image_url}?_t=${new Date().getTime()}`;
-                    afterImage.src = `${data.final_blended_image_url}?_t=${new Date().getTime()}`;
-                } else {
-                    historicalResult.textContent = `Error: ${data.error}`;
-                    beforeImage.src = "https://placehold.co/400x400/e2e8f0/fff?text=Error";
-                    afterImage.src = "https://placehold.co/400x400/e2e8f0/fff?text=Error";
+                // Update Live Alerts
+                const alertList = document.getElementById('alert-list');
+                const newAlertItem = document.createElement('div');
+                newAlertItem.className = 'alert-item';
+                newAlertItem.innerHTML = `
+                    <div class="alert-item-header">
+                        <span class="location">Lat: ${lat}, Lon: ${lon}</span>
+                        <span class="date">${new Date().toLocaleDateString()}</span>
+                    </div>
+                    <div class="alert-item-body">
+                        ${percentage > 0.1 ? 'Significant deforestation detected! ' : 'No significant deforestation detected.'}
+                        Percentage: ${data.percentage}
+                    </div>
+                `;
+                // Remove previous alerts and add the new one
+                while (alertList.firstChild) {
+                    alertList.removeChild(alertList.firstChild);
                 }
-            } catch (error) {
-                historicalResult.textContent = 'An unexpected error occurred.';
-                console.error('Fetch error:', error);
-                beforeImage.src = "https://placehold.co/400x400/e2e8f0/fff?text=Error";
-                afterImage.src = "https://placehold.co/400x400/e2e8f0/fff?text=Error";
-            } finally {
-                historicalDetectButton.textContent = originalButtonText;
-                historicalDetectButton.disabled = false;
-            }
-        });
+                alertList.prepend(newAlertItem);
 
-    </script>
+                // Update Geo Mapping gallery
+                const analysisGallery = document.getElementById('analysis-gallery');
+                const galleryItem = document.createElement('div');
+                galleryItem.className = 'gallery-item';
+                galleryItem.innerHTML = `
+                    <img src="${data.blended_image_url}" alt="Analysis result for Lat: ${lat}, Lon: ${lon}">
+                    <div class="gallery-overlay">
+                        <div class="location">Lat: ${lat}, Lon: ${lon}</div>
+                        <div class="date">${new Date().toLocaleString()}</div>
+                    </div>
+                `;
+                analysisGallery.prepend(galleryItem);
+                
+            } else {
+                statusMessage.textContent = `Error: ${data.error}`;
+                statusMessage.className = 'status-message status-error';
+                resultsPanel.style.display = 'none';
+            }
+        } catch (error) {
+            statusMessage.textContent = `Failed to connect to the server. Please check the backend.`;
+            statusMessage.className = 'status-message status-error';
+            console.error('Fetch error:', error);
+        } finally {
+            // 4. Re-enable the button
+            detectButton.disabled = false;
+        }
+    });
+</script>
+
 </body>
 </html>

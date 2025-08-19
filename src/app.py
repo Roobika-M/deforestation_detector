@@ -2,10 +2,7 @@
 
 from flask import Flask, render_template, jsonify, request
 import os
-import sys
-import requests
-import ee
-from datetime import datetime, timedelta
+from datetime import datetime
 import numpy as np
 from PIL import Image
 import logging
@@ -15,7 +12,7 @@ import time
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Import the core detection and fetching logic
-from deforestation_engine import run_detection_on_image
+from deforestation_engine import run_detection_on_image, run_detection_on_comparison
 from fetch_data import fetch_image_for_date_range, fetch_live_image, authenticate_and_initialize_gee
 
 # Initialize the Flask app and define paths
@@ -123,51 +120,31 @@ def detect_historical_deforestation():
     if not authenticate_and_initialize_gee():
         return jsonify({"error": "Failed to authenticate with Earth Engine."}), 500
 
-    # Step 2: Fetch the "before" image
+    # Step 2: Fetch the "before" and "after" images
+    # We now fetch the initial and final images as separate files for comparison
     success_initial, initial_image_path = fetch_image_for_date_range(
         lat, lon, start_date_str, 'initial'
     )
     if not success_initial:
         return jsonify({"error": f"Failed to get initial image: {initial_image_path}"}), 500
 
-    # Step 3: Fetch the "after" image
     success_final, final_image_path = fetch_image_for_date_range(
         lat, lon, end_date_str, 'final'
     )
     if not success_final:
         return jsonify({"error": f"Failed to get final image: {final_image_path}"}), 500
-
-    # Step 4: Run detection on both images
-    blended_initial, mask_initial, _ = run_detection_on_image(
-        image_path=initial_image_path,
-        model_path=MODEL_PATH
-    )
-    blended_final, mask_final, _ = run_detection_on_image(
-        image_path=final_image_path,
+    
+    # Step 3: Call the refactored function to run the comparison
+    blended_initial, blended_final, percentage = run_detection_on_comparison(
+        initial_image_path=initial_image_path,
+        final_image_path=final_image_path,
         model_path=MODEL_PATH
     )
 
-    if blended_initial is None or blended_final is None or mask_initial is None or mask_final is None:
+    if blended_initial is None or blended_final is None:
         return jsonify({"error": "Failed to run detection on historical images."}), 500
-
-    # Step 5: Compare the masks to get the percentage of new deforestation
-    # FIX: Convert PIL Images to NumPy arrays before comparison
-    initial_mask_array = np.array(mask_initial.convert('L'))
-    final_mask_array = np.array(mask_final.convert('L'))
-
-    # Binarize the arrays
-    initial_mask_binarized = (initial_mask_array > 0).astype(int)
-    final_mask_binarized = (final_mask_array > 0).astype(int)
     
-    # Calculate new deforestation (pixels that are 0 in initial and 1 in final)
-    # Use np.logical_and for clarity and to get a boolean mask
-    new_deforestation_mask = np.logical_and(initial_mask_binarized == 0, final_mask_binarized == 1)
-    
-    new_deforestation_pixels = np.sum(new_deforestation_mask)
-    total_pixels = new_deforestation_mask.size
-    percentage = (new_deforestation_pixels / total_pixels) * 100
-
-    # Step 6: Save the temporary result images for the frontend
+    # Step 4: Save the temporary result images for the frontend
     results_dir = os.path.join(app.root_path, 'static', 'results')
     os.makedirs(results_dir, exist_ok=True)
     
@@ -177,7 +154,7 @@ def detect_historical_deforestation():
     blended_initial.save(initial_blended_path)
     blended_final.save(final_blended_path)
 
-    # Step 7: Return the paths and percentage to the frontend
+    # Step 5: Return the paths and percentage to the frontend
     return jsonify({
         "success": True,
         "percentage": f"{percentage:.2f}%",

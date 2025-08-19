@@ -16,6 +16,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Global model and tile size
 MODEL = None
 TILE_SIZE = 256
+THRESHOLD = 0.5   # A global threshold for the model's output
+DISPLAY_SIZE = (640, 480)   # A smaller fixed size for the output images
 
 def load_and_preprocess_image(image_path):
     """
@@ -42,8 +44,8 @@ def load_and_preprocess_image(image_path):
         image_array = np.transpose(image_array, (1, 2, 0))
 
         # Pad the image to be a multiple of the tile size
-        pad_h = TILE_SIZE - (original_shape[0] % TILE_SIZE)
-        pad_w = TILE_SIZE - (original_shape[1] % TILE_SIZE)
+        pad_h = TILE_SIZE - (original_shape[0] % TILE_SIZE) if original_shape[0] % TILE_SIZE != 0 else 0
+        pad_w = TILE_SIZE - (original_shape[1] % TILE_SIZE) if original_shape[1] % TILE_SIZE != 0 else 0
         padded_image = np.pad(image_array, ((0, pad_h), (0, pad_w), (0, 0)), 'reflect')
 
         # Normalize the image data. Add a small epsilon to avoid division by zero.
@@ -80,7 +82,7 @@ def run_detection_on_comparison(initial_image_path, final_image_path, model_path
 
     Returns:
         tuple: A tuple containing the blended image (PIL.Image), the mask image
-               (PIL.Image), and the percentage of deforestation. Returns (None, None, 0)
+               (PIL.Image), and the percentage of new deforestation. Returns (None, None, 0)
                if an error occurs.
     """
     global MODEL
@@ -110,26 +112,23 @@ def run_detection_on_comparison(initial_image_path, final_image_path, model_path
     # Ensure images have the same dimensions for comparison
     if initial_shape != final_shape:
         logging.warning("Images have different dimensions. This may cause issues.")
-        # We can continue, but the results might be slightly off.
-        # No need to resize here as postprocess_predictions handles it.
 
     logging.info("Running detection on initial image...")
     initial_predictions = MODEL.predict(initial_tiles, verbose=0)
-    initial_mask = postprocess_predictions(initial_predictions, initial_shape)
+    # The mask is now correctly a binary array (0s and 1s)
+    initial_mask_binary = postprocess_predictions(initial_predictions, initial_shape)
 
     logging.info("Running detection on final image...")
     final_predictions = MODEL.predict(final_tiles, verbose=0)
-    final_mask = postprocess_predictions(final_predictions, final_shape)
+    # The mask is now correctly a binary array (0s and 1s)
+    final_mask_binary = postprocess_predictions(final_predictions, final_shape)
 
     # --- Compare the two masks to find new deforestation ---
-    # The postprocess_predictions now returns a binary mask, so no need to threshold here
-    initial_mask_binary = (initial_mask[:, :, 0] > 0.5)
-    final_mask_binary = (final_mask[:, :, 0] > 0.5)
-
-    # Find pixels that are deforested in the final image but not in the initial image
+    # Find pixels that are deforested in the final image but not in the initial image.
     new_deforestation_mask = np.logical_and(final_mask_binary, np.logical_not(initial_mask_binary))
 
     # --- Calculate percentage ---
+    # We're calculating the percentage of the total image area that has experienced *new* deforestation.
     deforestation_pixels = np.sum(new_deforestation_mask)
     total_pixels = new_deforestation_mask.size
     deforestation_percentage = (deforestation_pixels / total_pixels) * 100
@@ -138,16 +137,23 @@ def run_detection_on_comparison(initial_image_path, final_image_path, model_path
     # Create a red mask for the newly detected areas
     final_image_pil = Image.fromarray(final_image_array.astype(np.uint8))
     
+    # Rescale the new_deforestation_mask for visual blending (0 to 255)
+    new_deforestation_visual = (new_deforestation_mask.astype(np.uint8) * 255)
+    
     red_mask_array = np.zeros((*final_shape, 4), dtype=np.uint8)
-    red_mask_array[..., 0] = new_deforestation_mask * 255  # Red channel
-    red_mask_array[..., 3] = new_deforestation_mask * 150  # Alpha for transparency
+    red_mask_array[..., 0] = new_deforestation_visual   # Red channel
+    red_mask_array[..., 3] = new_deforestation_visual * 0.7   # Alpha for transparency
     red_mask_pil = Image.fromarray(red_mask_array, 'RGBA')
 
     # Create a blended image by overlaying the red mask
     blended_image = Image.alpha_composite(final_image_pil.convert('RGBA'), red_mask_pil)
     
     # Create a simple black and white mask image from the new deforestation mask
-    bw_mask = Image.fromarray(new_deforestation_mask.astype(np.uint8) * 255, 'L')
+    bw_mask = Image.fromarray(new_deforestation_visual, 'L')
+
+    # Resize the final images for display
+    blended_image = blended_image.resize(DISPLAY_SIZE, Image.LANCZOS)
+    bw_mask = bw_mask.resize(DISPLAY_SIZE, Image.NEAREST)
 
     return blended_image, bw_mask, deforestation_percentage
 
@@ -162,17 +168,16 @@ def postprocess_predictions(predictions, original_shape):
         original_shape (tuple): The (height, width) of the original image.
 
     Returns:
-        np.array: The final, resized binary prediction mask.
+        np.array: The final, resized binary prediction mask (0s and 1s).
     """
     # Number of tiles in height and width
-    # This logic assumes a square image and uniform tiling
     num_tiles = predictions.shape[0]
     num_tiles_h = int(np.ceil(original_shape[0] / TILE_SIZE))
     num_tiles_w = int(np.ceil(original_shape[1] / TILE_SIZE))
 
     if num_tiles != num_tiles_h * num_tiles_w:
-      logging.error("Mismatch in number of tiles. Prediction stitching may fail.")
-      return None
+        logging.error("Mismatch in number of tiles. Prediction stitching may fail.")
+        return None
 
     # Stitch tiles back together
     rows = []
@@ -182,15 +187,15 @@ def postprocess_predictions(predictions, original_shape):
     stitched_mask = np.vstack(rows)
 
     # Convert predictions to a binary mask based on a threshold
-    binary_mask = (stitched_mask[:, :, 0] > 0.5)
+    binary_mask = (stitched_mask[:, :, 0] > THRESHOLD)
 
     # Resize the binary mask to the original image dimensions
     mask_pil = Image.fromarray(binary_mask.astype(np.uint8) * 255, 'L')
     mask_resized_to_original = mask_pil.resize((original_shape[1], original_shape[0]), Image.NEAREST)
     mask_resized_array = np.array(mask_resized_to_original)
     
-    # Convert back to a 3-channel array for consistent output
-    return np.stack([mask_resized_array, mask_resized_array, mask_resized_array], axis=-1)
+    # Convert the 0-255 array back to a 0-1 binary array for calculations
+    return (mask_resized_array > 0).astype(np.uint8)
 
 # Helper function for live alerts, using a single image
 def run_detection_on_image(image_path, model_path):
@@ -228,27 +233,33 @@ def run_detection_on_image(image_path, model_path):
     
     logging.info("Running detection on image...")
     predictions = MODEL.predict(tiles, verbose=0)
-    prediction_mask = postprocess_predictions(predictions, original_shape)
+    prediction_mask_binary = postprocess_predictions(predictions, original_shape)
     
-    if prediction_mask is None:
+    if prediction_mask_binary is None:
         return None, None, 0
 
     # Calculate deforestation percentage
-    deforestation_pixels = np.sum(prediction_mask > 0)
-    total_pixels = prediction_mask.size
+    deforestation_pixels = np.sum(prediction_mask_binary)
+    total_pixels = prediction_mask_binary.size
     deforestation_percentage = (deforestation_pixels / total_pixels) * 100
     
     # Create visual output
     original_image_pil = Image.fromarray(image_array.astype(np.uint8))
+    
+    # Rescale the mask for visual blending (0 to 255)
+    prediction_mask_visual = (prediction_mask_binary * 255).astype(np.uint8)
+    
     red_mask_array = np.zeros((*original_shape, 4), dtype=np.uint8)
-    # Use a boolean mask for consistency
-    binary_mask = (prediction_mask[:, :, 0] > 0.5)
-    red_mask_array[..., 0] = binary_mask * 255  # Red channel
-    red_mask_array[..., 3] = binary_mask * 150  # Alpha
+    red_mask_array[..., 0] = prediction_mask_visual   # Red channel
+    red_mask_array[..., 3] = prediction_mask_visual * 0.7   # Alpha
     red_mask_pil = Image.fromarray(red_mask_array, 'RGBA')
     blended_image = Image.alpha_composite(original_image_pil.convert('RGBA'), red_mask_pil)
     
     # Create a simple black and white mask image from the resized mask
-    bw_mask = Image.fromarray(binary_mask.astype(np.uint8) * 255, 'L')
+    bw_mask = Image.fromarray(prediction_mask_visual, 'L')
     
+    # Resize the final images for display
+    blended_image = blended_image.resize(DISPLAY_SIZE, Image.LANCZOS)
+    bw_mask = bw_mask.resize(DISPLAY_SIZE, Image.NEAREST)
+
     return blended_image, bw_mask, deforestation_percentage

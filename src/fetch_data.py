@@ -59,10 +59,6 @@ def fetch_live_image(lat, lon):
     """
     Fetches the latest Sentinel-2 image for a given latitude and longitude.
     """
-    if not authenticate_and_initialize_gee():
-        return False, "Failed to authenticate with Earth Engine."
-
-    # Define the area of interest (AOI) as a point
     aoi = ee.Geometry.Point(lon, lat).buffer(1000)
 
     # Fetch the latest Sentinel-2 Image
@@ -113,14 +109,13 @@ def fetch_image_for_date_range(lat, lon, date_str, image_type):
     Returns:
         tuple: A tuple containing success (bool) and the local file path (str) or an error message (str).
     """
-    if not authenticate_and_initialize_gee():
-        return False, "Failed to authenticate with Earth Engine."
-
     try:
         # Define the date as the center of a search window
         target_date = datetime.strptime(date_str, '%Y-%m-%d')
-        search_start_date = target_date - timedelta(days=3)
-        search_end_date = target_date + timedelta(days=3)
+        
+        # Broaden the search window to 60 days before and 60 days after the target date
+        search_start_date = target_date - timedelta(days=60)
+        search_end_date = target_date + timedelta(days=60)
         logging.info(f"Attempting to find a {image_type} image between {search_start_date.strftime('%Y-%m-%d')} and {search_end_date.strftime('%Y-%m-%d')}")
     except ValueError as e:
         return False, f"Invalid date format: {e}. Please use YYYY-MM-DD."
@@ -129,23 +124,35 @@ def fetch_image_for_date_range(lat, lon, date_str, image_type):
     aoi = ee.Geometry.Point(lon, lat).buffer(1000)
 
     # Fetch the image for the specified date range
-    sentinel_image = (
+    image_collection = (
         ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
         .filterDate(search_start_date, search_end_date)
         .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 50))
         .filterBounds(aoi)
-        .sort('system:time_start', False)
-        .first()
     )
 
-    if not sentinel_image.getInfo():
+    # Correct way to sort in GEE Python API: map a property and then sort by it.
+    target_date_ms = ee.Number(target_date.timestamp() * 1000)
+    
+    def add_date_distance(image):
+        """Adds a 'date_distance' property to an image."""
+        date_distance = ee.Number(image.get('system:time_start')).subtract(target_date_ms).abs()
+        return image.set('date_distance', date_distance)
+    
+    # Map the function to the collection and then sort by the new property
+    sorted_collection = image_collection.map(add_date_distance).sort('date_distance')
+
+    # Get the closest image
+    image_to_download = sorted_collection.first()
+
+    if not image_to_download.getInfo():
         return False, f"No suitable Sentinel-2 images found for the {image_type} period ({date_str}). Please try different dates."
 
     # Select the RGB bands
-    sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
+    image_to_download = image_to_download.select(['B4', 'B3', 'B2'])
 
     try:
-        sentinel_url = sentinel_image.getDownloadUrl({
+        sentinel_url = image_to_download.getDownloadUrl({
             'scale': 10,
             'crs': 'EPSG:4326',
             'region': aoi.getInfo()['coordinates'],

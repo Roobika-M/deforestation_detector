@@ -36,8 +36,8 @@ def load_and_preprocess_image(image_path):
 
     try:
         with rasterio.open(image_path) as src:
-            # Read the first 3 bands (RGB)
-            image_array = src.read([1, 2, 3])
+            # Read all available bands from the image, not just the first 3
+            image_array = src.read()
             original_shape = (src.height, src.width)
             
         # Transpose to HWC (Height, Width, Channels)
@@ -93,6 +93,7 @@ def run_detection_on_comparison(initial_image_path, final_image_path, model_path
             return None, None, 0
         try:
             logging.info("Loading deforestation detection model...")
+            # Remember to update this path to your new 4-band model file after training
             MODEL = load_model(model_path, compile=False)
             logging.info("Model loaded successfully.")
         except Exception as e:
@@ -221,6 +222,7 @@ def run_detection_on_image(image_path, model_path):
             return None, None, 0
         try:
             logging.info("Loading deforestation detection model...")
+            # Remember to update this path to your new 4-band model file after training
             MODEL = load_model(model_path, compile=False)
             logging.info("Model loaded successfully.")
         except Exception as e:

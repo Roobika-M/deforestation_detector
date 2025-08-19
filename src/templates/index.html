@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ForestGuard Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
@@ -32,659 +33,290 @@
         }
 
         .sidebar {
-            width: 280px;
-            background-color: var(--sidebar-background);
-            padding: 2rem 1rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-            border-right: 1px solid var(--border-color);
-            transition: all 0.3s ease;
+            width: 250px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 24px;
+            height: 100vh;
         }
-        
-        .sidebar-logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary-color);
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-
-        .sidebar-nav {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .sidebar-nav-item a {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 1rem 1.5rem;
-            text-decoration: none;
-            color: var(--text-light);
-            font-weight: 500;
-            border-radius: var(--radius-md);
-            transition: all 0.2s ease;
-        }
-
-        .sidebar-nav-item a:hover {
-            background-color: var(--border-color);
-            color: var(--text-color);
-        }
-
-        .sidebar-nav-item a.active {
-            background-color: var(--primary-color);
-            color: var(--card-background);
-            box-shadow: var(--shadow);
-        }
-
-        .main-content {
+        .content {
             flex-grow: 1;
-            padding: 2rem;
-            overflow-y: auto;
+            background-color: #ecf0f1;
+            padding: 24px;
+        }
+        .nav-item {
             display: flex;
-            flex-direction: column;
-            gap: 2rem;
-        }
-
-        .content-section {
-            display: none;
-        }
-
-        .content-section.active {
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-        }
-        
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .card {
-            background-color: var(--card-background);
-            padding: 1.5rem;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .card-header {
-            font-size: 0.9rem;
-            color: var(--text-light);
-            display: flex;
-            justify-content: space-between;
             align-items: center;
-        }
-
-        .card-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--text-color);
-        }
-
-        .dashboard-layout {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.5rem;
-        }
-
-        @media (min-width: 900px) {
-            .dashboard-layout {
-                grid-template-columns: 1fr 1.5fr;
-            }
-        }
-
-        .panel {
-            background-color: var(--card-background);
-            padding: 2rem;
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow);
-        }
-
-        .panel-header {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-        }
-
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .input-group label {
-            font-weight: 500;
-            color: var(--text-light);
-        }
-
-        .input-group input {
-            padding: 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius-md);
-            transition: border-color 0.2s;
-            font-size: 1rem;
-        }
-
-        .input-group input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-        }
-
-        button {
-            width: 100%;
-            padding: 1rem;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 1rem;
-            font-weight: 600;
+            padding: 12px 16px;
+            border-radius: 8px;
             cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
+            transition: background-color 0.2s;
         }
-
-        button:hover {
-            background-color: var(--primary-dark);
+        .nav-item:hover, .nav-item.active {
+            background-color: #34495e;
         }
-
-        button:active {
-            transform: translateY(1px);
+        .nav-item-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
         }
-
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-
-        .status-message {
-            margin-top: 1rem;
-            padding: 1rem;
-            border-radius: var(--radius-md);
-            font-weight: 600;
-            text-align: center;
-        }
-
-        .status-info { background-color: #ebf8ff; color: #4299e1; }
-        .status-success { background-color: #f0fff4; color: #48bb78; }
-        .status-error { background-color: #fff5f5; color: #f56565; }
-
-        .image-results {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-        
-        @media (min-width: 768px) {
-            .image-results {
-                flex-direction: row;
-                justify-content: space-around;
-            }
-        }
-
-        .image-container {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-        }
-
-        .image-container h3 {
-            font-size: 1.1rem;
-            color: var(--text-color);
-            margin: 0;
-            text-align: center;
-        }
-        
-        .image-container img {
-            width: 100%;
-            height: auto;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border-color);
-            display: block;
-        }
-
-        .alert-box {
-            font-size: 1.2rem;
-            font-weight: 700;
-            padding: 1.5rem;
-            border-radius: var(--radius-md);
-            text-align: center;
-            margin-top: 1rem;
-            transition: all 0.3s ease;
-        }
-        .alert-on { background-color: #f56565; color: white; }
-        .alert-off { background-color: #48bb78; color: white; }
-
-        .user-profile {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 1rem;
-            background-color: var(--card-background);
-            border-radius: var(--radius-md);
-            margin-top: auto;
-            box-shadow: var(--shadow);
-        }
-
-        .user-profile img {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background-color: var(--border-color);
-        }
-
-        .user-profile-info {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .user-profile-name {
-            font-weight: 600;
-        }
-
-        .user-profile-role {
-            font-size: 0.8rem;
-            color: var(--text-light);
-        }
-        
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 70px;
-                padding: 2rem 0.5rem;
-            }
-            .sidebar-logo {
-                font-size: 1.2rem;
-                margin-bottom: 1rem;
-            }
-            .sidebar-nav-item a {
-                padding: 1rem 0.5rem;
-                justify-content: center;
-            }
-            .sidebar-nav-item span {
-                display: none;
-            }
-            .user-profile-info {
-                display: none;
-            }
-            .user-profile {
-                justify-content: center;
-            }
-            .main-content {
-                padding: 1rem;
-            }
-        }
-
-        .map-container {
-            width: 100%;
-            aspect-ratio: 16 / 9;
-            background-color: #e2e8f0;
-            border-radius: var(--radius-md);
-            overflow: hidden;
-            position: relative;
-        }
-
-        .map-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
-        .alert-list {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .alert-item {
-            background-color: #f7fafc;
-            border: 1px solid var(--border-color);
-            padding: 1.5rem;
-            border-radius: var(--radius-md);
-        }
-
-        .alert-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-        }
-        
-        .alert-item-header .location {
-            color: var(--primary-dark);
-        }
-
-        .alert-item-body {
-            font-size: 0.9rem;
-            color: var(--text-light);
-        }
-
-        .gallery {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .gallery-item {
-            position: relative;
-            overflow: hidden;
-            border-radius: var(--radius-md);
-            aspect-ratio: 1 / 1;
-            transition: transform 0.2s ease;
-        }
-        
-        .gallery-item:hover {
-            transform: scale(1.03);
-        }
-
-        .gallery-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .gallery-overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(transparent, rgba(0,0,0,0.6));
-            color: white;
-            padding: 1rem;
-            font-size: 0.9rem;
+        .nav-item-text {
             font-weight: 500;
-            transform: translateY(100%);
-            transition: transform 0.2s ease;
         }
-        
-        .gallery-item:hover .gallery-overlay {
-            transform: translateY(0);
-        }
-
-        .gallery-overlay .date {
-            font-size: 0.8rem;
-            color: #d1d5db;
-        }
-        
     </style>
 </head>
-<body>
-
-<div class="sidebar">
-    <div class="sidebar-logo">ForestGuard</div>
-    <ul class="sidebar-nav">
-        <li class="sidebar-nav-item"><a href="#" data-section="dashboard" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-dashboard"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg><span>Dashboard</span></a></li>
-        <li class="sidebar-nav-item"><a href="#" data-section="satellite-view"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-satellite"><path d="M13.5 14.5a2.5 2.5 0 0 0 0-5 2.5 2.5 0 0 0 0 5Z"/><path d="M17.43 14.82a6.37 6.37 0 0 0 0-9.64 6.37 6.37 0 0 0-9.64 0 6.37 6.37 0 0 0 0 9.64L10 17l2 2 2-2 3.43-2.18Z"/><path d="M11.64 12.64 8 16l-1.6-1.6"/><path d="m14 11-1.6-1.6"/><circle cx="12" cy="12" r="2.5"/><path d="m10.82 2.82-1.5 1.5"/><path d="M14.28 5.72 17.5 9"/><path d="m2.82 10.82 1.5 1.5"/><path d="m5.72 14.28 3.22 3.22"/><path d="m10.82 21.18 1.5-1.5"/><path d="m14.28 18.28 3.22 3.22"/><path d="m21.18 13.18-1.5-1.5"/><path d="m18.28 9.72-3.22-3.22"/></svg><span>Satellite View</span></a></li>
-        <li class="sidebar-nav-item"><a href="#" data-section="live-alerts"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bell-ring"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.36 17.27a2 2 0 1 0 3.28 0"/><path d="M14 22a4 4 0 0 0-8 0"/></svg><span>Live Alerts</span></a></li>
-        <li class="sidebar-nav-item"><a href="#" data-section="geo-mapping"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" x2="9" y1="3" y2="18"/><line x1="15" x2="15" y1="6" y2="21"/></svg><span>Geo Mapping</span></a></li>
-        <li class="sidebar-nav-item"><a href="#"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg><span>Reports</span></a></li>
-    </ul>
-    <div class="user-profile">
-        <img src="https://placehold.co/40x40/2d3748/ffffff?text=U" alt="User Profile">
-        <div class="user-profile-info">
-            <span class="user-profile-name">Admin User</span>
-            <span class="user-profile-role">Forest Protection Agency</span>
-        </div>
+<body class="flex min-h-screen">
+    <!-- Sidebar Navigation -->
+    <div class="sidebar flex flex-col items-start">
+        <h1 class="text-2xl font-bold mb-10">ForestGuard</h1>
+        <nav class="w-full space-y-2">
+            <a onclick="showSection('live-alerts')" class="nav-item active">
+                <svg class="nav-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span class="nav-item-text">Live Alerts</span>
+            </a>
+            <a onclick="showSection('historical-analysis')" class="nav-item">
+                <svg class="nav-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="nav-item-text">Historical Analysis</span>
+            </a>
+            <a onclick="showSection('reports')" class="nav-item">
+                <svg class="nav-item-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 2v-2m-8 6h10a2 2 0 002-2V8a2 2 0 00-2-2h-2V5a2 2 0 00-2-2H9a2 2 0 00-2 2v1H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="nav-item-text">Reports</span>
+            </a>
+        </nav>
     </div>
-</div>
 
-<div class="main-content">
-    <div id="dashboard" class="content-section active">
-        <div class="summary-cards">
-            <div class="card">
-                <div class="card-header">
-                    <span>Active Alerts</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-alert-triangle"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12" y1="17" y2="17"/></svg>
-                </div>
-                <div class="card-value">0</div>
-            </div>
-            <div class="card">
-                <div class="card-header">
-                    <span>Area Lost Today</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f56565" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-line-chart"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-                </div>
-                <div class="card-value">0 ha</div>
-            </div>
-            <div class="card">
-                <div class="card-header">
-                    <span>Detection Accuracy</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#48bb78" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trending-up"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/></svg>
-                </div>
-                <div class="card-value">N/A</div>
-            </div>
-            <div class="card">
-                <div class="card-header">
-                    <span>Monitored Regions</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin"><path d="M12 18s-4-4.81-4-9a4 4 0 0 1 8 0c0 4.19-4 9-4 9z"/><path d="M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
-                </div>
-                <div class="card-value">N/A</div>
-            </div>
-        </div>
+    <!-- Main Content Area -->
+    <div class="content flex flex-col items-center">
 
-        <div class="dashboard-layout">
-            <div class="panel">
-                <h2 class="panel-header">Deforestation Detection</h2>
-                <p style="margin-top:-1rem; margin-bottom: 2rem; color:var(--text-light)">Enter the latitude, longitude, and date to analyze.</p>
-                <div class="input-group">
-                    <label for="latitude">Latitude</label>
-                    <input type="number" id="latitude" placeholder="Enter latitude..." value="-10.74">
-                </div>
-                <div class="input-group">
-                    <label for="longitude">Longitude</label>
-                    <input type="number" id="longitude" placeholder="Enter longitude..." value="-63.15">
-                </div>
-                <div class="input-group">
-                    <label for="date">Date</label>
-                    <input type="date" id="date" value="2020-05-15">
-                </div>
-                <button id="detect-button">Detect Deforestation</button>
-                <p id="status-message" class="status-message"></p>
-            </div>
+        <!-- Live Alerts Section (Initial View) -->
+        <div id="live-alerts" class="w-full">
+            <h1 class="text-3xl font-extrabold text-gray-900 text-center">Live Satellite View</h1>
+            <p class="text-gray-600 text-center mb-8">A live satellite view of the currently analyzed location.</p>
 
-            <div class="panel" id="results-panel" style="display: none;">
-                <h2 class="panel-header">Live Detection Results</h2>
-                <div class="image-results">
-                    <div class="image-container">
-                        <h3>Before</h3>
-                        <img id="before-image" src="" alt="Before Image">
+            <div class="bg-white rounded-2xl shadow-xl p-8 max-w-4xl w-full flex flex-col md:flex-row gap-8">
+                <!-- Live Detection Input and Controls -->
+                <div class="w-full md:w-1/3 flex flex-col space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 text-center">Live Detection</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="live-lat" class="block text-sm font-medium text-gray-700">Latitude</label>
+                            <input type="number" id="live-lat" placeholder="-15.01" value="-15.01" step="0.0001"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                        <div>
+                            <label for="live-lon" class="block text-sm font-medium text-gray-700">Longitude</label>
+                            <input type="number" id="live-lon" placeholder="-62.99" value="-62.99" step="0.0001"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
                     </div>
-                    <div class="image-container">
-                        <h3>After</h3>
-                        <img id="after-image" src="" alt="After Image">
+                    <button onclick="detectLive()"
+                            class="w-full py-3 px-6 bg-green-600 text-white rounded-full font-semibold shadow-md hover:bg-green-700 transition duration-300">
+                        Check Live Deforestation
+                    </button>
+                </div>
+                <!-- Live Detection Results Display -->
+                <div class="w-full md:w-2/3 flex flex-col items-center">
+                    <div id="live-results-container" class="w-full">
+                        <div id="live-loading" class="hidden text-center text-gray-500 text-lg">
+                            Analyzing live satellite data.
+                        </div>
+                        <div id="live-error" class="hidden text-center text-red-500 font-semibold text-lg"></div>
+                        <div id="live-images-display" class="hidden flex flex-col space-y-4">
+                            <h2 class="text-2xl font-bold text-gray-800 text-center">Live Results</h2>
+                            <p id="live-percentage" class="text-xl text-center font-bold text-green-600"></p>
+                            
+                            <div class="bg-gray-200 rounded-lg p-2 shadow-inner">
+                                <h3 class="text-lg font-medium text-gray-700 mb-2">Live Satellite View</h3>
+                                <img id="live-blended-image" src="" alt="Live satellite image" class="w-full h-auto rounded-lg shadow-md" />
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="image-results">
-                    <div class="image-container">
-                        <h3>Blended Image</h3>
-                        <img id="blended-image" src="" alt="Blended Image with Deforestation">
+            </div>
+        </div>
+
+        <!-- Historical Analysis Section (Hidden by default) -->
+        <div id="historical-analysis" class="w-full hidden">
+            <h1 class="text-3xl font-extrabold text-gray-900 text-center">Historical Deforestation Analysis</h1>
+            <p class="text-gray-600 text-center mb-8">Compare two time periods to detect change.</p>
+
+            <div class="bg-white rounded-2xl shadow-xl p-8 max-w-4xl w-full flex flex-col md:flex-row gap-8">
+                <!-- Historical Detection Input and Controls -->
+                <div class="w-full md:w-1/3 flex flex-col space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 text-center">Analyze History</h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="hist-lat" class="block text-sm font-medium text-gray-700">Latitude</label>
+                            <input type="number" id="hist-lat" placeholder="-15.01" value="-15.01" step="0.0001"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                        <div>
+                            <label for="hist-lon" class="block text-sm font-medium text-gray-700">Longitude</label>
+                            <input type="number" id="hist-lon" placeholder="-62.99" value="-62.99" step="0.0001"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                        <div>
+                            <label for="start_date" class="block text-sm font-medium text-gray-700">Start Date</label>
+                            <input type="date" id="start_date" value="2024-01-01"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
+                        <div>
+                            <label for="end_date" class="block text-sm font-medium text-gray-700">End Date</label>
+                            <input type="date" id="end_date" value="2024-06-01"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" />
+                        </div>
                     </div>
-                    <div class="image-container">
-                        <h3>Predicted Mask</h3>
-                        <img id="mask-image" src="" alt="Predicted Deforestation Mask">
+                    <button onclick="detectHistorical()"
+                            class="w-full py-3 px-6 bg-blue-600 text-white rounded-full font-semibold shadow-md hover:bg-blue-700 transition duration-300">
+                        Analyze Historical Data
+                    </button>
+                </div>
+                <!-- Historical Detection Results Display -->
+                <div class="w-full md:w-2/3 flex flex-col items-center">
+                    <div id="historical-results-container" class="w-full">
+                        <div id="historical-loading" class="hidden text-center text-gray-500 text-lg">
+                            Comparing satellite data. This may take a moment...
+                        </div>
+                        <div id="historical-error" class="hidden text-center text-red-500 font-semibold text-lg"></div>
+                        <div id="historical-images-display" class="hidden flex flex-col space-y-4">
+                            <h2 class="text-2xl font-bold text-gray-800 text-center">Comparison Results</h2>
+                            <p id="historical-percentage" class="text-xl text-center font-bold text-blue-600"></p>
+                            
+                            <div class="bg-gray-200 rounded-lg p-2 shadow-inner">
+                                <h3 class="text-lg font-medium text-gray-700 mb-2">Deforestation Overlay</h3>
+                                <img id="historical-blended-image" src="" alt="Blended satellite image" class="w-full h-auto rounded-lg shadow-md" />
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="alert-box" id="alert-box"></div>
             </div>
+        </div>
+
+        <!-- Other placeholder sections -->
+        <div id="reports" class="w-full hidden">
+            <h1 class="text-3xl font-extrabold text-gray-900 text-center">Reports</h1>
+            <p class="text-gray-600 text-center mt-4">Generate and view detailed reports here.</p>
         </div>
     </div>
 
-    <div id="satellite-view" class="content-section">
-        <h2 class="panel-header">Satellite View</h2>
-        <p style="margin-top:-1rem; margin-bottom: 2rem; color:var(--text-light)">A live satellite view of the currently analyzed location.</p>
-        <div class="panel">
-            <div class="map-container">
-                <img id="map-image" src="https://placehold.co/1200x675/e2e8f0/718096?text=Map+View" alt="Satellite map of the area.">
-            </div>
-        </div>
-    </div>
-
-    <div id="live-alerts" class="content-section">
-        <h2 class="panel-header">Live Alerts</h2>
-        <p style="margin-top:-1rem; margin-bottom: 2rem; color:var(--text-light)">Recent alerts for detected deforestation, updating with your last analysis.</p>
-        <div class="alert-list" id="alert-list">
-            <!-- Alert items will be dynamically added here -->
-            <div class="alert-item">
-                <div class="alert-item-header">
-                    <span class="location">No alerts yet</span>
-                    <span class="date">N/A</span>
-                </div>
-                <div class="alert-item-body">
-                    Run a deforestation analysis to see the latest alert here.
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div id="geo-mapping" class="content-section">
-        <h2 class="panel-header">Analysis History</h2>
-        <p style="margin-top:-1rem; margin-bottom: 2rem; color:var(--text-light)">A gallery of recent deforestation analysis results.</p>
-        <div class="gallery" id="analysis-gallery">
-            <!-- Gallery items will be dynamically added here -->
-            <div class="gallery-item">
-                <img src="https://placehold.co/400x400/edf2f7/718096?text=Start+an+Analysis" alt="Placeholder image for a past detection.">
-                <div class="gallery-overlay">
-                    <div class="location">Start an Analysis</div>
-                    <div class="date">to see results here</div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-    const sections = document.querySelectorAll('.content-section');
-    const navLinks = document.querySelectorAll('.sidebar-nav-item a');
-
-    navLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            
-            // Remove active class from all links and sections
-            navLinks.forEach(nav => nav.classList.remove('active'));
-            sections.forEach(section => section.classList.remove('active'));
-            
-            // Add active class to clicked link and corresponding section
-            const targetSection = e.target.closest('a').dataset.section;
-            if (targetSection) {
-                e.target.closest('a').classList.add('active');
-                document.getElementById(targetSection).classList.add('active');
-            }
-        });
-    });
-
-    document.getElementById('detect-button').addEventListener('click', async () => {
-        const lat = document.getElementById('latitude').value;
-        const lon = document.getElementById('longitude').value;
-        const date = document.getElementById('date').value;
-        const statusMessage = document.getElementById('status-message');
-        const detectButton = document.getElementById('detect-button');
-        const resultsPanel = document.getElementById('results-panel');
-
-        if (!lat || !lon || !date) {
-            statusMessage.textContent = 'Please enter latitude, longitude, and a date.';
-            statusMessage.className = 'status-message status-error';
-            return;
-        }
-
-        // 1. Show processing status and disable button
-        statusMessage.textContent = 'Processing... Please wait.';
-        statusMessage.className = 'status-message status-info';
-        detectButton.disabled = true;
-        resultsPanel.style.display = 'none';
-
-        try {
-            // 2. Make the API call to the Flask backend with a single date
-            const response = await fetch(`/detect?lat=${lat}&lon=${lon}&date=${date}`);
-            const data = await response.json();
-
-            // 3. Handle the response
-            if (data.success) {
-                statusMessage.textContent = `Detection complete! Deforestation: ${data.percentage}`;
-                statusMessage.className = 'status-message status-success';
-                
-                // Show the results panel on the dashboard view
-                resultsPanel.style.display = 'block';
-
-                // Update the images on the dashboard view
-                document.getElementById('before-image').src = data.before_image_url;
-                document.getElementById('after-image').src = data.after_image_url;
-                document.getElementById('blended-image').src = data.blended_image_url;
-                document.getElementById('mask-image').src = data.mask_image_url;
-                
-                // Update alert message on the dashboard view
-                const alertBox = document.getElementById('alert-box');
-                const percentage = parseFloat(data.percentage);
-                
-                if (percentage > 0.1) {
-                    alertBox.textContent = `🚨 ALERT: Significant deforestation detected! (${data.percentage})`;
-                    alertBox.className = 'alert-box alert-on';
+    <script>
+        // Function to switch between dashboard sections
+        function showSection(sectionId) {
+            const sections = ['live-alerts', 'historical-analysis', 'reports'];
+            sections.forEach(id => {
+                const section = document.getElementById(id);
+                const navItem = document.querySelector(`[onclick="showSection('${id}')"]`);
+                if (id === sectionId) {
+                    section.classList.remove('hidden');
+                    navItem.classList.add('active');
                 } else {
-                    alertBox.textContent = `✅ No significant deforestation detected. (${data.percentage})`;
-                    alertBox.className = 'alert-box alert-off';
+                    section.classList.add('hidden');
+                    navItem.classList.remove('active');
                 }
-
-                // Update Satellite View
-                const mapImage = document.getElementById('map-image');
-                mapImage.src = `https://placehold.co/1200x675?text=Lat:${lat}+Lon:${lon}`;
-
-                // Update Live Alerts
-                const alertList = document.getElementById('alert-list');
-                const newAlertItem = document.createElement('div');
-                newAlertItem.className = 'alert-item';
-                newAlertItem.innerHTML = `
-                    <div class="alert-item-header">
-                        <span class="location">Lat: ${lat}, Lon: ${lon}</span>
-                        <span class="date">${new Date().toLocaleDateString()}</span>
-                    </div>
-                    <div class="alert-item-body">
-                        ${percentage > 0.1 ? 'Significant deforestation detected! ' : 'No significant deforestation detected.'}
-                        Percentage: ${data.percentage}
-                    </div>
-                `;
-                // Remove previous alerts and add the new one
-                while (alertList.firstChild) {
-                    alertList.removeChild(alertList.firstChild);
-                }
-                alertList.prepend(newAlertItem);
-
-                // Update Geo Mapping gallery
-                const analysisGallery = document.getElementById('analysis-gallery');
-                const galleryItem = document.createElement('div');
-                galleryItem.className = 'gallery-item';
-                galleryItem.innerHTML = `
-                    <img src="${data.blended_image_url}" alt="Analysis result for Lat: ${lat}, Lon: ${lon}">
-                    <div class="gallery-overlay">
-                        <div class="location">Lat: ${lat}, Lon: ${lon}</div>
-                        <div class="date">${new Date().toLocaleString()}</div>
-                    </div>
-                `;
-                analysisGallery.prepend(galleryItem);
-                
-            } else {
-                statusMessage.textContent = `Error: ${data.error}`;
-                statusMessage.className = 'status-message status-error';
-                resultsPanel.style.display = 'none';
-            }
-        } catch (error) {
-            statusMessage.textContent = `Failed to connect to the server. Please check the backend.`;
-            statusMessage.className = 'status-message status-error';
-            console.error('Fetch error:', error);
-        } finally {
-            // 4. Re-enable the button
-            detectButton.disabled = false;
+            });
         }
-    });
-</script>
+        // Live Detection Function
+        async function detectLive() {
+            const lat = document.getElementById('live-lat').value;
+            const lon = document.getElementById('live-lon').value;
 
+            const loading = document.getElementById('live-loading');
+            const error = document.getElementById('live-error');
+            const imagesDisplay = document.getElementById('live-images-display');
+            const percentageText = document.getElementById('live-percentage');
+            const blendedImage = document.getElementById('live-blended-image');
+
+            // Reset UI
+            loading.classList.remove('hidden');
+            imagesDisplay.classList.add('hidden');
+            error.classList.add('hidden');
+            error.textContent = '';
+            
+            try {
+                const response = await fetch('/api/detect-live', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        lat: parseFloat(lat),
+                        lon: parseFloat(lon),
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    percentageText.textContent = `Live Deforestation: ${data.percentage}`;
+                    blendedImage.src = data.blended_image_url;
+                    imagesDisplay.classList.remove('hidden');
+                } else {
+                    error.textContent = `Error: ${data.error || 'An unknown error occurred.'}`;
+                    error.classList.remove('hidden');
+                }
+            } catch (e) {
+                error.textContent = `Network Error: Could not connect to the server. Please check your connection.`;
+                error.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+// Historical Analysis Function
+        async function detectHistorical() {
+            const lat = document.getElementById('hist-lat').value;
+            const lon = document.getElementById('hist-lon').value;
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+
+            const loading = document.getElementById('historical-loading');
+            const error = document.getElementById('historical-error');
+            const imagesDisplay = document.getElementById('historical-images-display');
+            const percentageText = document.getElementById('historical-percentage');
+            const blendedImage = document.getElementById('historical-blended-image');
+
+            // Reset UI
+            loading.classList.remove('hidden');
+            imagesDisplay.classList.add('hidden');
+            error.classList.add('hidden');
+            error.textContent = '';
+            
+            try {
+                const response = await fetch('/api/detect-historical', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        lat: parseFloat(lat),
+                        lon: parseFloat(lon),
+                        initial_date: startDate,
+                        final_date: endDate,
+                    }),
+                });
+                
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    percentageText.textContent = `New Deforestation Detected: ${data.percentage}`;
+                    blendedImage.src = data.blended_image_url;
+                    imagesDisplay.classList.remove('hidden');
+                } else {
+                    error.textContent = `Error: ${data.error || 'An unknown error occurred.'}`;
+                    error.classList.remove('hidden');
+                }
+            } catch (e) {
+                error.textContent = `Network Error: Could not connect to the server. Please check your connection.`;
+                error.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+    </script>
 </body>
 </html>

@@ -68,7 +68,7 @@ print("Shape of a single tile:", X_train[0].shape)
 print("Shape of a single label tile:", y_train[0].shape)
 
 # --- 2. Build and Train the UNet Model ---
-def unet_model(input_shape=(256, 256, 3)):
+def unet_model(input_shape=(256, 256, 4)):
     inputs = tf.keras.Input(input_shape)
 
     # Encoder
@@ -113,5 +113,5 @@ history = model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=10)
 
 # Save the trained model
 print("\nTraining complete. Saving the model...")
-model.save('deforestation_3band_model.h5')
-print("Model saved as 'deforestation_3band_model.h5'")
+model.save('deforestation_4band_model.h5')
+print("Model saved as 'deforestation_4band_model.h5'")

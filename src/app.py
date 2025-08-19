@@ -6,116 +6,103 @@ from flask import Flask, request, render_template, send_file, jsonify
 from deforestation_engine import run_detection_on_image, run_detection_on_comparison
 from fetch_data import fetch_deforestation_data, fetch_sar_data, combine_data
 import ee
-from PIL import Image
+from datetime import datetime, timedelta
 
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+# Import the core detection and fetching logic
+from deforestation_engine import run_detection_on_comparison, run_detection_on_image
+from fetch_data import fetch_image_for_date_range, fetch_live_image, authenticate_and_initialize_gee
 
-# Path to your trained model file.
-# Make sure to update this path after training your new 4-band model.
-MODEL_PATH = 'deforestation_4band_model.h5'
+# Initialize the Flask app and define paths
+app = Flask(__name__, static_folder='static', template_folder='templates')
 
-# Initialize Earth Engine with your Project ID
-try:
-    # Replace 'your-project-id' with your actual Google Cloud Project ID
-    ee.Initialize(project='your-project-id')
-    print("Earth Engine initialized successfully.")
-except ee.EEException as e:
-    print(f"Error initializing Earth Engine: {e}")
-    print("Please ensure you have authenticated and are using a valid project ID.")
-    
+# Define paths relative to the project root
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+LIVE_IMAGE_FOLDER = os.path.join(PROJECT_ROOT, 'deforestation_alerts')
+LIVE_IMAGE_PATH = os.path.join(LIVE_IMAGE_FOLDER, 'latest_satellite_image.tif')
+MODEL_PATH = os.path.join(PROJECT_ROOT, 'model', 'deforestation_3band_model.h5')
+
+
 @app.route('/')
 def index():
+    """Main route for the dashboard."""
     return render_template('index.html')
 
 @app.route('/historical')
 def historical():
+    """Route for the historical deforestation detection page."""
     return render_template('historical.html')
-    
-@app.route('/api/detect-live', methods=['POST'])
-def detect_live():
-    data = request.json
-    lat = data.get('lat')
-    lon = data.get('lon')
-    date_str = data.get('date')
-    
-    if not all([lat, lon, date_str]):
-        return jsonify({"error": "Missing latitude, longitude, or date"}), 400
+
+
+@app.route('/detect-live')
+def detect_deforestation_live():
+    """
+    API endpoint to detect deforestation for a given lat/lon for the latest image.
+    1. Fetches the latest satellite image.
+    2. Runs the trained model on the image.
+    3. Returns the blended image and the percentage.
+    """
+    # Get parameters from URL
+    lat_str = request.args.get('lat')
+    lon_str = request.args.get('lon')
+
+    if not lat_str or not lon_str:
+        return jsonify({"error": "Latitude and longitude parameters are required."}), 400
 
     try:
-        # Define a small bounding box around the point
-        bbox = [lon - 0.01, lat - 0.01, lon + 0.01, lat + 0.01]
-        
-        # We need a start and end date for GEE. Use a 1-month range.
-        start_date = date_str
-        end_date = ee.Date(date_str).advance(1, 'month').format('YYYY-MM-dd').getInfo()
+        lat = float(lat_str)
+        lon = float(lon_str)
+    except ValueError:
+        return jsonify({"error": "Invalid latitude or longitude format. Must be a number."}), 400
 
-        # Fetch and combine the data
-        s2_image = fetch_deforestation_data(bbox, start_date, end_date)
-        s1_image = fetch_sar_data(bbox, start_date, end_date)
-        combined_image = combine_data(s2_image, s1_image)
-        
-        # Save the combined image temporarily
-        temp_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'live_image.tif')
-        
-        # The ee.Image needs to be exported to a local file before model inference.
-        # This is a simplified approach. A real-world app would use more robust export.
-        ee.batch.Export.image.toDrive(image=combined_image,
-                                      description='live_image',
-                                      folder='deforestation_app',
-                                      fileNamePrefix='live_image',
-                                      scale=10, # Sentinel-2 resolution
-                                      region=ee.Geometry.Rectangle(bbox)).start()
-                                      
-        # Note: Export to Google Drive is an asynchronous process.
-        # You would need a more complex system to wait for this to complete.
-        # For this project, you can assume the file is there or handle the delay.
-        
-        # For simplicity in this example, we assume you have a local TIFF file already.
-        # Replace the above with a manual export and place the TIFF in the uploads folder.
-        # For example: temp_image_path = 'uploads/manually_exported_image.tif'
-        
-        # Since we can't wait for the export, we'll return a message to the user.
-        return jsonify({
-            "message": "Data export to Google Drive started. Please wait for the file to be ready.",
-            "status": "pending"
-        })
-
-        # --- The following code is for after you have the local TIFF file ---
-        # blended_image, mask_image, deforestation_percent = run_detection_on_image(temp_image_path, MODEL_PATH)
-
-        # if blended_image is None:
-        #     return jsonify({"error": "Failed to run detection on the image."}), 500
-
-        # # Convert PIL images to bytes to send back to the client
-        # blended_img_io = io.BytesIO()
-        # blended_image.save(blended_img_io, format='PNG')
-        # blended_img_io.seek(0)
-
-        # mask_img_io = io.BytesIO()
-        # mask_image.save(mask_img_io, format='PNG')
-        # mask_img_io.seek(0)
-        
-        # return jsonify({
-        #     "blended_image": blended_img_io.getvalue().decode('latin-1'),
-        #     "mask_image": mask_img_io.getvalue().decode('latin-1'),
-        #     "deforestation_percent": deforestation_percent
-        # })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/detect-historical', methods=['POST'])
-def detect_historical():
-    data = request.json
-    lat = data.get('lat')
-    lon = data.get('lon')
-    initial_date_str = data.get('initial_date')
-    final_date_str = data.get('final_date')
+    # Step 1: Fetch the new live image
+    if not authenticate_and_initialize_gee():
+        return jsonify({"error": "Failed to authenticate with Earth Engine."}), 500
     
-    if not all([lat, lon, initial_date_str, final_date_str]):
-        return jsonify({"error": "Missing latitude, longitude, or dates"}), 400
+    success_fetch, message_fetch = fetch_live_image(lat, lon)
+    if not success_fetch:
+        return jsonify({"error": message_fetch}), 500
+
+    # Step 2: Run the detection on the newly downloaded image
+    blended_image, mask_image, percentage = run_detection_on_image(
+        image_path=LIVE_IMAGE_PATH,
+        model_path=MODEL_PATH
+    )
+
+    if blended_image is None:
+        return jsonify({"error": "Failed to run detection. Check model and image paths."}), 500
+
+    # Step 3: Save the temporary result images for the frontend
+    results_dir = os.path.join(app.root_path, 'static', 'results')
+    os.makedirs(results_dir, exist_ok=True)
+    
+    blended_path = os.path.join(results_dir, 'live_blended.png')
+    
+    blended_image.save(blended_path)
+
+    # Step 4: Return the paths and percentage to the frontend
+    return jsonify({
+        "success": True,
+        "percentage": f"{percentage:.2f}%",
+        "blended_image_url": f"/static/results/live_blended.png?_t={datetime.now().timestamp()}"
+    })
+
+
+@app.route('/detect')
+def detect_historical_deforestation():
+    """
+    API endpoint to detect deforestation for a given lat/lon and date range.
+    1. Fetches two satellite images for the date range.
+    2. Runs the trained model on both images.
+    3. Compares the results and returns the percentage of new deforestation.
+    """
+    # Get parameters from URL
+    lat_str = request.args.get('lat')
+    lon_str = request.args.get('lon')
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if not lat_str or not lon_str or not start_date_str or not end_date_str:
+        return jsonify({"error": "Latitude, longitude, start_date, and end_date parameters are required."}), 400
 
     try:
         # Define a small bounding box around the point
@@ -126,62 +113,48 @@ def detect_historical():
         s1_initial = fetch_sar_data(bbox, initial_date_str, initial_date_str)
         combined_initial = combine_data(s2_initial, s1_initial)
 
-        # Fetch and combine data for the final period
-        s2_final = fetch_deforestation_data(bbox, final_date_str, final_date_str)
-        s1_final = fetch_sar_data(bbox, final_date_str, final_date_str)
-        combined_final = combine_data(s2_final, s1_final)
-        
-        # Save the combined images temporarily
-        initial_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'initial_image.tif')
-        final_image_path = os.path.join(app.config['UPLOAD_FOLDER'], 'final_image.tif')
-        
-        # Again, this is an asynchronous process. For a real app, you would need
-        # to wait for these files to be ready before calling run_detection_on_comparison.
-        # A simple way for a local project is to manually export the files.
-        ee.batch.Export.image.toDrive(image=combined_initial,
-                                      description='initial_image',
-                                      folder='deforestation_app',
-                                      fileNamePrefix='initial_image',
-                                      scale=10,
-                                      region=ee.Geometry.Rectangle(bbox)).start()
-        
-        ee.batch.Export.image.toDrive(image=combined_final,
-                                      description='final_image',
-                                      folder='deforestation_app',
-                                      fileNamePrefix='final_image',
-                                      scale=10,
-                                      region=ee.Geometry.Rectangle(bbox)).start()
-                                      
-        return jsonify({
-            "message": "Data export to Google Drive started for historical analysis. Please wait for the files to be ready.",
-            "status": "pending"
-        })
-        
-        # --- The following code is for after you have the local TIFF files ---
-        # blended_image, mask_image, deforestation_percent = run_detection_on_comparison(
-        #     initial_image_path, final_image_path, MODEL_PATH
-        # )
+    # Step 2: Fetch two images for the date range
+    # Fix: Add the 'image_type' argument
+    success_initial, initial_image_path = fetch_image_for_date_range(
+        lat, lon, start_date_str, start_date_str, 'initial'
+    )
+    if not success_initial:
+        return jsonify({"error": initial_image_path}), 500
 
-        # if blended_image is None:
-        #     return jsonify({"error": "Failed to run detection."}), 500
+    # Fix: Add the 'image_type' argument
+    success_final, final_image_path = fetch_image_for_date_range(
+        lat, lon, end_date_str, end_date_str, 'final'
+    )
+    if not success_final:
+        return jsonify({"error": final_image_path}), 500
+    
+    # Step 3: Run the comparison detection
+    blended_image, mask_image, percentage = run_detection_on_comparison(
+        initial_image_path=initial_image_path,
+        final_image_path=final_image_path,
+        model_path=MODEL_PATH
+    )
 
-        # # Convert PIL images to bytes to send back to the client
-        # blended_img_io = io.BytesIO()
-        # blended_image.save(blended_img_io, format='PNG')
-        # blended_img_io.seek(0)
-        
-        # mask_img_io = io.BytesIO()
-        # mask_image.save(mask_img_io, format='PNG')
-        # mask_img_io.seek(0)
-        
-        # return jsonify({
-        #     "blended_image": blended_img_io.getvalue().decode('latin-1'),
-        #     "mask_image": mask_img_io.getvalue().decode('latin-1'),
-        #     "deforestation_percent": deforestation_percent
-        # })
-        
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    if blended_image is None:
+        return jsonify({"error": "Failed to run detection. Check model and image paths."}), 500
+
+    # Step 4: Save the temporary result images for the frontend
+    results_dir = os.path.join(app.root_path, 'static', 'results')
+    os.makedirs(results_dir, exist_ok=True)
+    
+    blended_path = os.path.join(results_dir, 'blended.png')
+    mask_path = os.path.join(results_dir, 'mask.png')
+    
+    blended_image.save(blended_path)
+    mask_image.save(mask_path)
+
+    # Step 5: Return the paths and percentage to the frontend
+    return jsonify({
+        "success": True,
+        "percentage": f"{percentage:.2f}%",
+        "blended_image_url": f"/static/results/blended.png?_t={datetime.now().timestamp()}",
+        "mask_image_url": f"/static/results/mask.png?_t={datetime.now().timestamp()}"
+    })
 
 
 if __name__ == '__main__':

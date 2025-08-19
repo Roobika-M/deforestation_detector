@@ -1,44 +1,66 @@
 import ee
 import os
-import geemap
+import sys
+from datetime import datetime, timedelta
+import time
+import logging
 
-# Initialize the Earth Engine connection
-# Note: You need to have authenticated and initialized EE previously
-# e.g., ee.Authenticate() and ee.Initialize()
-# We assume this is done in a main script or a setup file.
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def mask_clouds_and_shadows(image):
+# Define the folder and filename for the live image
+DATA_FOLDER = '../deforestation_alerts'
+LIVE_IMAGE_PATH = os.path.join(DATA_FOLDER, 'latest_satellite_image.tif')
+HISTORICAL_IMAGE_FOLDER = os.path.join(DATA_FOLDER, 'historical')
+
+def authenticate_and_initialize_gee():
+    """Authenticates and initializes the Google Earth Engine API."""
+    try:
+        # Use your specific Google Cloud Project ID
+        GOOGLE_CLOUD_PROJECT_ID = 'amazing-math-417115'
+        ee.Initialize(project=GOOGLE_CLOUD_PROJECT_ID)
+        logging.info("Earth Engine initialized successfully.")
+        return True
+    except Exception as e:
+        logging.error(f"Authentication failed: {e}")
+        return False
+
+def download_file(url, local_path, retries=5):
+    """Downloads a file from a URL with retry logic."""
+    for i in range(retries):
+        try:
+            logging.info(f"Attempting to download {os.path.basename(local_path)} (Attempt {i+1}/{retries})...")
+            response = requests.get(url, stream=True, timeout=60)
+            response.raise_for_status()
+
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+            with open(local_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            logging.info(f"✅ Download successful: {local_path}")
+            return True, "Download successful."
+        except requests.exceptions.RequestException as e:
+            logging.error(f"❌ Download failed: {e}")
+            if i < retries - 1:
+                logging.info("Retrying in 5 seconds...")
+                time.sleep(5)
+            else:
+                logging.error(f"❌ Max retries exceeded. Download failed.")
+                return False, f"Download failed after {retries} retries."
+    return False, "Download process did not complete."
+
+def fetch_live_image(lat, lon):
     """
-    Masks clouds and shadows in a Sentinel-2 SR image.
-    This function is adapted from a Google Earth Engine community example.
+    Fetches the latest Sentinel-2 image for a given latitude and longitude.
     """
-    qa = image.select('QA60')
+    if not authenticate_and_initialize_gee():
+        return False, "Failed to authenticate with Earth Engine."
 
-    # Bits 10 and 11 are clouds and cirrus, respectively.
-    cloud_bit_mask = 1 << 10
-    cirrus_bit_mask = 1 << 11
-
-    # Both flags should be set to zero, indicating clear conditions.
-    mask = qa.bitwiseAnd(cloud_bit_mask).eq(0).And(
-           qa.bitwiseAnd(cirrus_bit_mask).eq(0))
-
-    # Return the masked image, with the 'cloud probability' band as well
-    # for potential future use.
-    return image.updateMask(mask).divide(10000)
-
-def fetch_deforestation_data(bbox, start_date, end_date):
-    """
-    Fetches deforestation data (Sentinel-2 SR images) from Google Earth Engine.
-    Args:
-        bbox: A list of coordinates [min_lon, min_lat, max_lon, max_lat]
-              defining the bounding box.
-        start_date: Start date for the image collection (e.g., '2023-01-01').
-        end_date: End date for the image collection (e.g., '2023-01-31').
-    Returns:
-        An ee.ImageCollection with cloud-masked Sentinel-2 imagery.
-    """
-    # Create a geometry from the bounding box
-    geometry = ee.Geometry.Rectangle(bbox)
+    # Define the area of interest (AOI) as a point
+    aoi = ee.Geometry.Point(lon, lat).buffer(1000)
 
     # Load Sentinel-2 surface reflectance images, filter by bounds and date,
     # and apply the cloud mask.
@@ -61,59 +83,54 @@ def fetch_sar_data(bbox, start_date, end_date):
     Returns:
         An ee.ImageCollection of processed Sentinel-1 imagery.
     """
-    # Create a geometry from the bounding box
-    geometry = ee.Geometry.Rectangle(bbox)
+    if not authenticate_and_initialize_gee():
+        return False, "Failed to authenticate with Earth Engine."
 
-    # Load Sentinel-1 GRD imagery, filter by bounds, date, and polarization
-    collection = ee.ImageCollection('COPERNICUS/S1_GRD') \
-        .filterBounds(geometry) \
-        .filterDate(start_date, end_date) \
-        .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV')) \
-        .filter(ee.Filter.eq('instrumentMode', 'IW')) \
-        .filter(ee.Filter.eq('orbitProperties_pass', 'DESCENDING'))
-
-    # Apply a speckle filter to reduce noise
-    def apply_speckle_filter(image):
-        return image.focal_median()
-
-    # Apply the filter and take the median composite
-    sar_image = collection.map(apply_speckle_filter).median()
-    
-    # We only need the 'VV' band for this analysis
-    return sar_image.select('VV')
-
-def combine_data(s2_image, s1_image):
-    """
-    Combines Sentinel-2 and Sentinel-1 images into a single image.
-    Args:
-        s2_image: The processed Sentinel-2 image.
-        s1_image: The processed Sentinel-1 image.
-    Returns:
-        A combined ee.Image with bands from both satellites.
-    """
-    # Resize SAR image to match Sentinel-2 resolution
-    s1_resized = s1_image.reproject(crs=s2_image.select('B4').projection())
-    
-    # Combine the bands from both images
-    return s2_image.addBands(s1_resized)
-
-# After your import statements and before any EE calls
-if __name__ == '__main__':
-    # Add your Project ID here
-    project_id = 'amazing-math-417115'
-    
-    # Authenticate and initialize Earth Engine with project ID
     try:
-        ee.Authenticate()
-        ee.Initialize(project=project_id)
-        print("Earth Engine initialized successfully.")
-    except ee.ee_exception.EEException as e:
-        print(f"Error initializing Earth Engine: {e}")
-        print("Please ensure you have authenticated and are using a valid project ID.")
-        exit()
+        # Define the date as the center of a search window
+        target_date = datetime.strptime(date_str, '%Y-%m-%d')
+        search_start_date = target_date - timedelta(days=3)
+        search_end_date = target_date + timedelta(days=3)
+        logging.info(f"Attempting to find a {image_type} image between {search_start_date.strftime('%Y-%m-%d')} and {search_end_date.strftime('%Y-%m-%d')}")
+    except ValueError as e:
+        return False, f"Invalid date format: {e}. Please use YYYY-MM-DD."
 
-    # Example usage:
-    example_bbox = [-68.8, -10.5, -68.4, -10.2]
-    start_date = '2023-01-01'
-    end_date = '2023-03-31'
-    # ... the rest of your code
+    # Define the area of interest (AOI) as a point
+    aoi = ee.Geometry.Point(lon, lat).buffer(1000)
+
+    # Fetch the image for the specified date range
+    sentinel_image = (
+        ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
+        .filterDate(search_start_date, search_end_date)
+        .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 50))
+        .filterBounds(aoi)
+        .sort('system:time_start', False)
+        .first()
+    )
+
+    if not sentinel_image.getInfo():
+        return False, f"No suitable Sentinel-2 images found for the {image_type} period ({date_str}). Please try different dates."
+
+    # Select the RGB bands
+    sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
+
+    try:
+        sentinel_url = sentinel_image.getDownloadUrl({
+            'scale': 10,
+            'crs': 'EPSG:4326',
+            'region': aoi.getInfo()['coordinates'],
+            'format': 'GEO_TIFF'
+        })
+    except ee.EEException as e:
+        return False, f"Error generating download URL: {e}"
+        
+    # Define the local path for the historical image
+    local_path = os.path.join(HISTORICAL_IMAGE_FOLDER, f'satellite_image_{image_type}.tif')
+
+    # Download the image
+    success, message = download_file(sentinel_url, local_path)
+    
+    if not success:
+        return False, message
+    
+    return True, local_path

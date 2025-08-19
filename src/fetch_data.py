@@ -99,15 +99,15 @@ def fetch_live_image(lat, lon):
     return success, message
 
 
-def fetch_image_for_date_range(lat, lon, start_date_str, end_date_str, image_type):
+def fetch_image_for_date_range(lat, lon, date_str, image_type):
     """
-    Fetches a single Sentinel-2 image for a given date range and location.
+    Fetches a single Sentinel-2 image for a given date string and location,
+    searching within a flexible window around that date.
 
     Args:
         lat (float): Latitude of the location.
         lon (float): Longitude of the location.
-        start_date_str (str): Start date string (YYYY-MM-DD).
-        end_date_str (str): End date string (YYYY-MM-DD).
+        date_str (str): The date string (YYYY-MM-DD).
         image_type (str): A label for the image ('initial' or 'final').
 
     Returns:
@@ -117,19 +117,16 @@ def fetch_image_for_date_range(lat, lon, start_date_str, end_date_str, image_typ
         return False, "Failed to authenticate with Earth Engine."
 
     try:
-        # Define the date range
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+        # Define the date as the center of a search window
+        target_date = datetime.strptime(date_str, '%Y-%m-%d')
+        search_start_date = target_date - timedelta(days=3)
+        search_end_date = target_date + timedelta(days=3)
+        logging.info(f"Attempting to find a {image_type} image between {search_start_date.strftime('%Y-%m-%d')} and {search_end_date.strftime('%Y-%m-%d')}")
     except ValueError as e:
         return False, f"Invalid date format: {e}. Please use YYYY-MM-DD."
 
     # Define the area of interest (AOI) as a point
     aoi = ee.Geometry.Point(lon, lat).buffer(1000)
-
-    # Search within a flexible date window (e.g., 7 days) to find a suitable image.
-    search_start_date = start_date - timedelta(days=3)
-    search_end_date = start_date + timedelta(days=3)
-    logging.info(f"Attempting to find a {image_type} image between {search_start_date.strftime('%Y-%m-%d')} and {search_end_date.strftime('%Y-%m-%d')}")
 
     # Fetch the image for the specified date range
     sentinel_image = (
@@ -142,7 +139,7 @@ def fetch_image_for_date_range(lat, lon, start_date_str, end_date_str, image_typ
     )
 
     if not sentinel_image.getInfo():
-        return False, f"No suitable Sentinel-2 images found for the {image_type} period ({start_date_str} to {end_date_str}). Please try different dates."
+        return False, f"No suitable Sentinel-2 images found for the {image_type} period ({date_str}). Please try different dates."
 
     # Select the RGB bands
     sentinel_image = sentinel_image.select(['B4', 'B3', 'B2'])
@@ -167,4 +164,3 @@ def fetch_image_for_date_range(lat, lon, start_date_str, end_date_str, image_typ
         return False, message
     
     return True, local_path
-

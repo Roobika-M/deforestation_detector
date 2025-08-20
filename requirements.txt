@@ -1,4 +1,0 @@
-rasterio
-numpy
-tensorflow
-matplotlib

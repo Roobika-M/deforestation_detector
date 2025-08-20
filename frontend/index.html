@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌳 Live Deforestation Dashboard (AI)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <h2>Dashboard</h2>
+    <button id="tab-live" class="tab active">Live Check</button>
+    <button id="tab-hist" class="tab">Historical</button>
+  </aside>
+
+  <main class="content">
+    <h1>🌳 AI-Powered Deforestation Detection</h1>
+
+    <!-- Live Check -->
+    <div id="panel-live" class="panel">
+      <div class="card">
+        <h3>Live Check (last 30 days vs baseline)</h3>
+        <label>latitude and logitude (minLon,minLat,maxLon,maxLat)</label>
+        <input id="live-bbox" value="-60,-10,-59,-9">
+
+        <details>
+          <label>Baseline (start,end)</label>
+          <input id="live-baseline" placeholder="YYYY-MM-DD,YYYY-MM-DD">
+        </details>
+
+        <button id="run-live">Run Live Check</button>
+        <div id="status-live" class="status">status: idle</div>
+      </div>
+    </div>
+
+    <!-- Historical -->
+    <div id="panel-hist" class="panel hidden">
+      <div class="card">
+        <h3>Historical Analysis (custom ranges)</h3>
+        <label>latitude and logitude (minLon,minLat,maxLon,maxLat)</label>
+        <input id="hist-bbox" value="-60,-10,-59,-9">
+
+        <div class="row">
+          <div>
+            <label>Before (start,end)</label>
+            <input id="hist-before" value="2018-01-01,2018-12-31">
+          </div>
+          <div>
+            <label>After (start,end)</label>
+            <input id="hist-after" value="2024-01-01,2024-12-31">
+          </div>
+        </div>
+
+        <button id="run-hist">Run Historical</button>
+        <div id="status-hist" class="status">status: idle</div>
+      </div>
+    </div>
+
+    <!-- Continuous Monitoring -->
+
+    <div class="grid">
+      <figure>
+        <figcaption>Before (AI mask)</figcaption>
+        <img id="img_before" alt="Before" src="placeholder.svg">
+      </figure>
+      <figure>
+        <figcaption>After (AI mask)</figcaption>
+        <img id="img_after" alt="After" src="placeholder.svg">
+      </figure>
+    </div>
+
+    <div class="card">
+      <h3>Stats</h3>
+      <pre id="stats">—</pre>
+    </div>
+    <div id="alertBox" class="alert hidden"></div>
+        <div class="card">
+      <h3>Continuous Monitoring</h3>
+      <label>Bounding Box (minLon,minLat,maxLon,maxLat)</label>
+      <input id="monitor-bbox" value="-60,-10,-59,-9">
+
+      <div class="row">
+        <div>
+          <label>Interval (seconds)</label>
+          <input id="monitor-interval" value="3600">
+        </div>
+      </div>
+
+      <button id="start-monitor">Start Monitoring</button>
+      <button id="stop-monitor" class="danger">Stop Monitoring</button>
+      <div id="status-monitor" class="status">status: idle</div>
+    </div>
+
+    <div id="alertBox" class="alert hidden"></div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
